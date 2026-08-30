@@ -11,16 +11,15 @@ jobs:
         with:
           path: ./cloned
 
-      - name: verify clone worked
+      - name: debug — what is in cwd
         run: |
-          echo "=== top-level ==="
-          ls cloned | head -20
-          echo "=== action.yml head ==="
-          head -5 cloned/action.yml
-          echo "=== checkout.sh head ==="
-          head -5 cloned/lib/checkout.sh
-          echo "=== git log ==="
-          git -C cloned log --oneline -3
-          echo "=== git identity ==="
-          git -C cloned config user.name
-          git -C cloned config user.email
+          echo "PWD: $(pwd)"
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE:-unset}"
+          echo "--- top-level ---"
+          ls -la
+          echo "--- cloned (if exists) ---"
+          ls -la cloned 2>&1 || echo "cloned DOES NOT EXIST"
+          echo "--- env INPUT_* ---"
+          env | grep -E '^INPUT_' || echo "no INPUT_* env vars"
+          echo "--- searching for cloned anywhere ---"
+          find / -name 'action.yml' -path '*x-cmd-action*' 2>/dev/null | head -5
