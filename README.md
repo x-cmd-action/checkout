@@ -181,25 +181,6 @@ All inputs are independent — combine them freely:
 | `show-progress` | `true` | show git progress in logs |
 | `set-safe-directory` | `true` | auto-add `safe.directory '*'` (container safety) |
 
-## How it works
-
-```
-┌────────────────────────────────────────┐
-│  x-cmd-action/checkout                 │
-│  ─ reads inputs                         │
-│  ─ safe.directory (if requested)       │
-│  ─ auth: SSH | token | public          │
-│  ─ git init / fetch / checkout         │
-│  ─ sparse, submodules, LFS             │
-│  ─ strip token (if !persist)           │
-│  ─ set github-actions bot identity     │
-└────────────────────────────────────────┘
-         │
-         └─ uses only: git, ssh-keyscan, ssh-agent, standard POSIX
-```
-
-No Node.js. No nested `uses:`. No npm packages. The action tarball itself is just `action.yml` + `lib/checkout.sh`.
-
 ## Comparison with `actions/checkout`
 
 | Dimension | `actions/checkout@v4` | `x-cmd-action/checkout` |
