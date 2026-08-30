@@ -6,18 +6,28 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout via x-cmd-action/checkout
+      - name: checkout via x-cmd-action/checkout (default path = workspace)
+        uses: x-cmd-action/checkout@main
+
+      - name: verify clone landed in workspace
+        run: |
+          echo "=== top-level ==="
+          ls
+          echo "=== action.yml head ==="
+          head -3 action.yml
+          echo "=== checkout.sh head ==="
+          head -3 lib/checkout.sh
+          echo "=== git identity ==="
+          git config user.name
+          git config user.email
+
+      - name: checkout into custom path
         uses: x-cmd-action/checkout@main
         with:
-          path: ./cloned
+          path: ./custom-path
 
-      - name: debug — what is in cwd
+      - name: verify custom path worked
         run: |
-          echo "PWD: $(pwd)"
-          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE:-unset}"
-          echo "--- top-level ---"
-          ls -la
-          echo "--- cloned (if exists) ---"
-          ls -la cloned 2>&1 || echo "cloned DOES NOT EXIST"
-          echo "--- debug log from action step ---"
-          cat "${RUNNER_TEMP:-/tmp}/checkout-debug.log" 2>&1 || echo "debug log not found"
+          echo "=== custom-path ==="
+          ls custom-path
+          test -f custom-path/action.yml && echo "OK: action.yml present in custom-path"
