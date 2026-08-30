@@ -1,0 +1,26 @@
+name: test-basic
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout via x-cmd-action/checkout
+        uses: x-cmd-action/checkout@main
+        with:
+          path: ./cloned
+
+      - name: verify clone worked
+        run: |
+          echo "=== top-level ==="
+          ls cloned | head -20
+          echo "=== action.yml head ==="
+          head -5 cloned/action.yml
+          echo "=== checkout.sh head ==="
+          head -5 cloned/lib/checkout.sh
+          echo "=== git log ==="
+          git -C cloned log --oneline -3
+          echo "=== git identity ==="
+          git -C cloned config user.name
+          git -C cloned config user.email

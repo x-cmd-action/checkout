@@ -38,7 +38,6 @@ fi
 
 # ───────────────────── auth mode ─────────────────────
 URL=""
-USING_SSH=false
 USING_TOKEN=false
 
 if [ -n "$SSH_KEY" ] || [ "$REQUIRE_SSH_KEY" = "true" ]; then
@@ -46,7 +45,6 @@ if [ -n "$SSH_KEY" ] || [ "$REQUIRE_SSH_KEY" = "true" ]; then
         echo "ERROR: ssh-key is required when require-ssh-key is true" >&2
         exit 1
     fi
-    USING_SSH=true
     eval "$(ssh-agent -s)" >/dev/null
     mkdir -p ~/.ssh
     chmod 700 ~/.ssh
