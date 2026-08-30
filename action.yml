@@ -87,4 +87,28 @@ runs:
   steps:
     - name: git checkout (shell)
       shell: bash
+      env:
+        # Composite actions don't auto-expose inputs as INPUT_* env vars to inner
+        # shell steps — we have to map them explicitly. Mirrors the convention
+        # actions/checkout uses internally.
+        INPUT_REPOSITORY: ${{ inputs.repository }}
+        INPUT_REF: ${{ inputs.ref }}
+        INPUT_TOKEN: ${{ inputs.token }}
+        INPUT_SSH_KEY: ${{ inputs.ssh-key }}
+        INPUT_SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+        INPUT_SSH_STRICT: ${{ inputs.ssh-strict }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_CLEAN: ${{ inputs.clean }}
+        INPUT_FETCH_DEPTH: ${{ inputs.fetch-depth }}
+        INPUT_FETCH_TAGS: ${{ inputs.fetch-tags }}
+        INPUT_FETCH_ADDITIONAL: ${{ inputs.fetch-additional }}
+        INPUT_LFS: ${{ inputs.lfs }}
+        INPUT_SUBMODULES: ${{ inputs.submodules }}
+        INPUT_SPARSE_CHECKOUT: ${{ inputs.sparse-checkout }}
+        INPUT_SPARSE_CHECKOUT_CONE_MODE: ${{ inputs.sparse-checkout-cone-mode }}
+        INPUT_PERSIST_CREDENTIALS: ${{ inputs.persist-credentials }}
+        INPUT_SHOW_PROGRESS: ${{ inputs.show-progress }}
+        INPUT_SET_SAFE_DIRECTORY: ${{ inputs.set-safe-directory }}
+        INPUT_GITHUB_SERVER_URL: ${{ inputs.github-server-url }}
+        INPUT_REQUIRE_SSH_KEY: ${{ inputs.require-ssh-key }}
       run: bash ${{ github.action_path }}/lib/checkout.sh
