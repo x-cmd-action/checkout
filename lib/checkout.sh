@@ -3,6 +3,7 @@
 # Replaces every input of actions/checkout@v4 in a single bash step.
 
 set -euo errexit
+echo "::debug::checkout.sh start; cwd=$(pwd); INPUT_PATH=${INPUT_PATH:-<unset>}"
 
 # ───────────────────── inputs ─────────────────────
 REPOSITORY="${INPUT_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
