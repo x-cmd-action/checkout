@@ -25,14 +25,82 @@ If you don't want x-cmd in your CI at all, this action works fine standalone. It
 
 ```yaml
 - uses: x-cmd-action/checkout@v1
+```
+
+That's it for the common case — shallow clone of the current repo, ref, and token, defaulting to `actions/checkout`'s behavior. The `with:` block is optional.
+
+### Common use cases
+
+**Full history** — for `git log` / `git blame` across all commits:
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    fetch-depth: 0
+```
+
+**Submodules** — initialize + fetch recursively:
+
+```yaml
+- uses: x-cmd-action/checkout@v1
   with:
     submodules: recursive
+```
+
+**Git LFS files** — pull LFS-tracked binaries alongside the checkout:
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
     lfs: true
 ```
 
-Default is shallow clone (`fetch-depth: 1`, same as `actions/checkout`). Set `fetch-depth: 0` if you need full history.
+**Private repo via SSH** — use a deploy key instead of the default token:
 
-Same input names as `actions/checkout` where possible. The default `repository` / `ref` come from `github.*` context just like `actions/checkout`.
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+```
+
+**Custom path** — clone into a subdirectory instead of overwriting workspace root:
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    path: src
+```
+
+**Specific ref / tag / SHA**:
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    ref: v1.2.3
+```
+
+**Sparse checkout** — only certain paths (saves time on monorepos):
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    sparse-checkout: |
+      docs/
+      src/**/*.go
+```
+
+### Composing multiple
+
+All inputs are independent — combine them freely:
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    submodules: recursive
+    lfs: true
+    fetch-depth: 0
+    ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+```
 
 ## Inputs
 

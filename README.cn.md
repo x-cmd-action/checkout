@@ -31,12 +31,82 @@
 
 ```yaml
 - uses: x-cmd-action/checkout@v1
+```
+
+最常见情况就这样 —— 当前 repo + ref + token 的浅 clone，行为同 `actions/checkout`。`with:` 块可选。
+
+### 常见用例
+
+**全量历史** —— 给 `git log` / `git blame` 用：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    fetch-depth: 0
+```
+
+**Submodules** —— 递归初始化 + 拉取：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
   with:
     submodules: recursive
+```
+
+**Git LFS 文件** —— 顺手把 LFS 跟踪的大文件拉下来：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
     lfs: true
 ```
 
-默认浅 clone（`fetch-depth: 1`，同 `actions/checkout`）。需要全量历史时设 `fetch-depth: 0`。
+**私有 repo 用 SSH** —— 用 deploy key 替代默认 token：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+```
+
+**自定义路径** —— 克隆到子目录，不覆盖 workspace 根：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    path: src
+```
+
+**指定 ref / tag / SHA**：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    ref: v1.2.3
+```
+
+**Sparse checkout** —— 只拉部分路径（monorepo 省时间）：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    sparse-checkout: |
+      docs/
+      src/**/*.go
+```
+
+### 组合使用
+
+各 input 相互独立，自由组合：
+
+```yaml
+- uses: x-cmd-action/checkout@v1
+  with:
+    submodules: recursive
+    lfs: true
+    fetch-depth: 0
+    ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+```
 
 input 名称尽量和 `actions/checkout` 对齐。`repository` / `ref` 的默认值来自 `github.*` context，行为一致。
 
