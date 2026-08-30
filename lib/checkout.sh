@@ -3,7 +3,7 @@
 # 1:1 input parity with actions/checkout@v4 plus x-cmd enhancements:
 #   - known-hosts-url (curl-fetch known_hosts)
 #   - fetch-additional (additional refspecs)
-#   - local-config (repo-scoped [include] for a .gitconfig file — repo-local
+#   - gitconfig (repo-scoped [include] for a .gitconfig file — repo-local
 #     hooks, signing keys, identity overrides, etc.)
 #
 # SSH path mirrors actions/checkout's approach: temp files + GIT_SSH_COMMAND
@@ -37,7 +37,7 @@ SHOW_PROGRESS="${INPUT_SHOW_PROGRESS:-true}"
 SET_SAFE_DIRECTORY="${INPUT_SET_SAFE_DIRECTORY:-true}"
 GITHUB_SERVER_URL="${INPUT_GITHUB_SERVER_URL:-${GITHUB_SERVER_URL:-https://github.com}}"
 ALLOW_UNSAFE_PR_CHECKOUT="${INPUT_ALLOW_UNSAFE_PR_CHECKOUT:-false}"
-LOCAL_CONFIG="${INPUT_LOCAL_CONFIG:-}"
+GITCONFIG="${INPUT_GITCONFIG:-}"
 
 # Derived
 HOST=$(echo "$GITHUB_SERVER_URL" | sed -E 's|^https?://||; s|/.*$||')
@@ -229,12 +229,12 @@ fi
 git config user.name "github-actions[bot]"
 git config user.email "github-actions[bot]@users.noreply.github.com"
 
-if [ -n "$LOCAL_CONFIG" ]; then
-    if [ ! -f "$LOCAL_CONFIG" ]; then
-        echo "ERROR: local-config file not found: $LOCAL_CONFIG" >&2
+if [ -n "$GITCONFIG" ]; then
+    if [ ! -f "$GITCONFIG" ]; then
+        echo "ERROR: gitconfig file not found: $GITCONFIG" >&2
         exit 1
     fi
-    INCLUDE_PATH=$(realpath "$LOCAL_CONFIG")
+    INCLUDE_PATH=$(realpath "$GITCONFIG")
     git config --local include.path "$INCLUDE_PATH"
-    echo "local-config: include.path=$INCLUDE_PATH (repo-scoped)"
+    echo "gitconfig: include.path=$INCLUDE_PATH (repo-scoped)"
 fi

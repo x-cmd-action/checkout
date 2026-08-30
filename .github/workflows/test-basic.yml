@@ -34,20 +34,20 @@ jobs:
           ls custom-path
           test -f custom-path/action.yml && echo "OK: action.yml present in custom-path"
 
-      - name: checkout with local-config (repo-scoped .gitconfig)
+      - name: checkout with gitconfig (repo-scoped .gitconfig)
         uses: x-cmd-action/checkout@main
         with:
-          path: ./lc
-          local-config: ./.github/workflows/test.gitconfig
+          path: ./gc
+          gitconfig: ./.github/workflows/test.gitconfig
 
-      - name: verify local-config include was applied (repo-scoped)
+      - name: verify gitconfig include was applied (repo-scoped)
         run: |
-          cd lc
+          cd gc
           # Confirm the [include] entry is in .git/config
           grep -q "include" .git/config && echo "OK: include directive in .git/config"
           # Confirm the included values are visible via git config in the repo
-          test "$(git config user.name)" = "test-checkout-bot" && echo "OK: user.name from file applied (repo-scoped via local-config)"
-          test "$(git config user.email)" = "test-checkout-bot@example.com" && echo "OK: user.email from file applied (repo-scoped via local-config)"
+          test "$(git config user.name)" = "test-checkout-bot" && echo "OK: user.name from file applied (repo-scoped via gitconfig)"
+          test "$(git config user.email)" = "test-checkout-bot@example.com" && echo "OK: user.email from file applied (repo-scoped via gitconfig)"
           # Confirm global ~/.gitconfig was NOT touched
           cd "$HOME" 2>/dev/null || cd /
           test "$(git config --global user.name 2>/dev/null || echo)" != "test-checkout-bot" && echo "OK: global ~/.gitconfig untouched"

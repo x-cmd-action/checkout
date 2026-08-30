@@ -127,7 +127,7 @@ jobs:
       # ─── x-cmd enhancements ───
       - name: verify all 3 x-cmd enhancements are present
         run: |
-          for input in known-hosts-url fetch-additional local-config; do
+          for input in known-hosts-url fetch-additional gitconfig; do
             grep -q "^  ${input}:" "$GITHUB_WORKSPACE/action.yml" \
               && echo "OK: $input (x-cmd enhancement) defined"
           done

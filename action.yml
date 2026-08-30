@@ -99,7 +99,7 @@ inputs:
       workflows. See actions/checkout docs for the security context.
     required: false
     default: 'false'
-  local-config:
+  gitconfig:
     description: |
       Path to a .gitconfig file. When set, added as [include] in the checked-out
       repo's .git/config — repo-scoped only, the runner's ~/.gitconfig is left
@@ -139,5 +139,5 @@ runs:
         INPUT_SET_SAFE_DIRECTORY: ${{ inputs.set-safe-directory }}
         INPUT_GITHUB_SERVER_URL: ${{ inputs.github-server-url }}
         INPUT_ALLOW_UNSAFE_PR_CHECKOUT: ${{ inputs.allow-unsafe-pr-checkout }}
-        INPUT_LOCAL_CONFIG: ${{ inputs.local-config }}
+        INPUT_GITCONFIG: ${{ inputs.gitconfig }}
       run: bash ${{ github.action_path }}/lib/checkout.sh
