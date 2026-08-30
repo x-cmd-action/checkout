@@ -1,0 +1,90 @@
+name: Checkout (Shell)
+description: |
+  Pure-shell git checkout for GitHub Actions. Drop-in alternative to
+  actions/checkout — same input names where possible, same features, but
+  no Node.js runtime and no nested action dependencies.
+
+inputs:
+  repository:
+    description: 'Repository to check out: <owner>/<repo>'
+    required: false
+    default: ${{ github.repository }}
+  ref:
+    description: 'Branch, tag, or SHA to check out'
+    required: false
+    default: ${{ github.ref_name }}
+  token:
+    description: 'Token for HTTPS clone of private repos'
+    required: false
+    default: ${{ github.token }}
+  ssh-key:
+    description: 'SSH private key (alternative to token; takes priority when set)'
+    required: false
+  ssh-known-hosts:
+    description: 'Custom known_hosts content (verbatim)'
+    required: false
+  ssh-strict:
+    description: 'Whether to enforce strict host key checking'
+    required: false
+    default: 'true'
+  path:
+    description: 'Where to clone'
+    required: false
+    default: ${{ github.workspace }}
+  clean:
+    description: 'Whether to wipe the path before cloning'
+    required: false
+    default: 'true'
+  fetch-depth:
+    description: 'Number of commits to fetch. 0 = full history.'
+    required: false
+    default: '1'
+  fetch-tags:
+    description: 'Whether to fetch tags'
+    required: false
+    default: 'false'
+  fetch-additional:
+    description: 'Additional refs to fetch (space-separated)'
+    required: false
+  lfs:
+    description: 'Whether to pull LFS files'
+    required: false
+    default: 'false'
+  submodules:
+    description: 'Submodule recursion: false | true | recursive'
+    required: false
+    default: 'false'
+  sparse-checkout:
+    description: 'Patterns for sparse checkout (one per line)'
+    required: false
+  sparse-checkout-cone-mode:
+    description: 'Use cone mode for sparse checkout'
+    required: false
+    default: 'true'
+  persist-credentials:
+    description: 'Keep token in .git/config after clone'
+    required: false
+    default: 'true'
+  show-progress:
+    description: 'Show fetch / checkout progress'
+    required: false
+    default: 'true'
+  set-safe-directory:
+    description: 'Auto-add safe.directory globally (needed for container runners)'
+    required: false
+    default: 'true'
+  github-server-url:
+    description: 'GitHub server URL (override for Enterprise Server)'
+    required: false
+    default: ${{ github.server_url }}
+  require-ssh-key:
+    description: 'If true, ssh-key becomes mandatory (no token fallback)'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: git checkout (shell)
+      shell: bash
+      run: bash ${{ github.action_path }}/lib/checkout.sh
