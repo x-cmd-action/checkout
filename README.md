@@ -56,6 +56,8 @@ The `gitconfig` input applies a `.gitconfig` to the **cloned repo only** (via `[
 
 The file's contents are merged into the repo's `.git/config` via git's native `[include]`. Anything else already in the repo's config is preserved.
 
+> Need config that applies to **all repos in the job**, not just this checkout? Use [`x-cmd-action/gitconfig`](https://github.com/x-cmd-action/gitconfig) — it writes to `~/.gitconfig` (job-wide) instead of the repo's `.git/config` (this repo only).
+
 ### Common use cases
 
 **Full history** — for `git log` / `git blame` across all commits:

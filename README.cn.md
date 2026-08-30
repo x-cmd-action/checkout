@@ -62,6 +62,8 @@
 
 文件内容通过 git 原生 `[include]` 合并进 repo 的 `.git/config`。repo 已有的其他 config 都保留。
 
+> 需要对**整个 job 的所有 repo**都生效的 config（不只这一个 checkout）？用 [`x-cmd-action/gitconfig`](https://github.com/x-cmd-action/gitconfig) —— 它写 `~/.gitconfig`（job 全局），不是 repo 的 `.git/config`（仅本 repo）。
+
 ### 常见用例
 
 **全量历史** —— 给 `git log` / `git blame` 用：
