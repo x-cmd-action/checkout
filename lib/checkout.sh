@@ -80,7 +80,9 @@ if [ "$CLEAN" = "true" ] && [ -d "$PATH_DIR" ]; then
     rm -rf "$PATH_DIR"
 fi
 mkdir -p "$PATH_DIR"
+echo "::debug::PATH_DIR=$PATH_DIR"
 cd "$PATH_DIR"
+echo "::debug::after cd; cwd=$(pwd)"
 
 # ───────────────────── init / re-init ─────────────────────
 if [ -d ".git" ]; then
