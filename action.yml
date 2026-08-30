@@ -65,6 +65,15 @@ inputs:
     description: 'Keep token in .git/config after clone'
     required: false
     default: 'true'
+  gitconfig:
+    description: |
+      Path to a .gitconfig file. When set, the file is copied to ~/.gitconfig
+      (mode 0600) — applies that config globally for the rest of the job.
+      Use this to bring a repo-specific config (signing keys, custom user
+      identity, etc.) into the runner.
+      When unset, checkout falls back to its default: set repo-local
+      user.name/user.email to github-actions[bot].
+    required: false
   show-progress:
     description: 'Show fetch / checkout progress'
     required: false
@@ -107,6 +116,7 @@ runs:
         INPUT_SPARSE_CHECKOUT: ${{ inputs.sparse-checkout }}
         INPUT_SPARSE_CHECKOUT_CONE_MODE: ${{ inputs.sparse-checkout-cone-mode }}
         INPUT_PERSIST_CREDENTIALS: ${{ inputs.persist-credentials }}
+        INPUT_GITCONFIG: ${{ inputs.gitconfig }}
         INPUT_SHOW_PROGRESS: ${{ inputs.show-progress }}
         INPUT_SET_SAFE_DIRECTORY: ${{ inputs.set-safe-directory }}
         INPUT_GITHUB_SERVER_URL: ${{ inputs.github-server-url }}

@@ -31,3 +31,14 @@ jobs:
           echo "=== custom-path ==="
           ls custom-path
           test -f custom-path/action.yml && echo "OK: action.yml present in custom-path"
+
+      - name: checkout with gitconfig file
+        uses: x-cmd-action/checkout@main
+        with:
+          path: ./gc
+          gitconfig: ./.github/workflows/test.gitconfig
+
+      - name: verify global gitconfig was applied
+        run: |
+          test "$(git config --global user.name)" = "test-checkout-bot" && echo "OK: user.name from file applied globally"
+          test "$(git config --global user.email)" = "test-checkout-bot@example.com" && echo "OK: user.email from file applied globally"

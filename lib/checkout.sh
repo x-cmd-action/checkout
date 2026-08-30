@@ -149,6 +149,22 @@ if [ "$PERSIST_CREDENTIALS" = "false" ] && [ "$USING_TOKEN" = "true" ]; then
     git remote set-url origin "${GITHUB_SERVER_URL}/${REPOSITORY}.git"
 fi
 
-# ───────────────────── github-actions bot identity ─────────────────────
-git config user.name "github-actions[bot]"
-git config user.email "github-actions[bot]@users.noreply.github.com"
+# ───────────────────── github identity ─────────────────────
+# Two paths:
+#   gitconfig=<file>  → copy file to ~/.gitconfig (global). Use this to apply
+#                        a repo-specific .gitconfig (signing keys, custom user
+#                        identity, etc.) globally for the rest of the job.
+#   gitconfig=unset    → set repo-local user.name/user.email to github-actions[bot]
+#                        (default, backward-compatible behavior).
+if [ -n "$INPUT_GITCONFIG" ]; then
+    if [ ! -f "$INPUT_GITCONFIG" ]; then
+        echo "ERROR: gitconfig file not found: $INPUT_GITCONFIG" >&2
+        exit 1
+    fi
+    cp "$INPUT_GITCONFIG" "$HOME/.gitconfig"
+    chmod 600 "$HOME/.gitconfig"
+    echo "gitconfig: copied $INPUT_GITCONFIG -> ~/.gitconfig"
+else
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
+fi

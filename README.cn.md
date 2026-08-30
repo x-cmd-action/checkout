@@ -85,6 +85,7 @@ input 名称尽量和 `actions/checkout` 对齐。`repository` / `ref` 的默认
 | Input | 默认 | 说明 |
 | --- | --- | --- |
 | `persist-credentials` | `true` | clone 完 token 是否留在 `.git/config` |
+| `gitconfig` | — | `.gitconfig` 文件路径。设了之后文件被复制到 `~/.gitconfig`（权限 0600）。用来把仓库特定的配置（签名 key、自定义身份等）带到 runner 上。 |
 | `show-progress` | `true` | fetch / checkout 时是否显示进度 |
 | `set-safe-directory` | `true` | 自动加 `safe.directory '*'`（container 环境需要） |
 
