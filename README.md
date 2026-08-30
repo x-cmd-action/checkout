@@ -29,23 +29,32 @@ If you don't want x-cmd in your CI at all, this action works fine standalone. It
 
 That's it for the common case — shallow clone of the current repo, ref, and token, defaulting to `actions/checkout`'s behavior. The `with:` block is optional.
 
-### With git hooks (composing with `x-cmd-action/gitconfig`)
+### With repo-scoped git config (e.g. custom hooks for this checkout)
 
-If your workflow needs custom git hooks (pre-commit lint, commit-msg signing, etc.), pair checkout with [`x-cmd-action/gitconfig`](../gitconfig) — gitconfig must run first so the hooks are in place before any git command in the job:
+The `gitconfig` input applies a `.gitconfig` to the **cloned repo only** (via `[include] path = <file>` in the repo's `.git/config`). It doesn't touch `~/.gitconfig` — your other repos in the same job are unaffected. Use this for repo-specific config: custom hooks, signing keys, aliases, etc.
 
 ```yaml
-steps:
-  - uses: x-cmd-action/gitconfig@v1
-    with:
-      hooks-path: .github/hooks
-
-  - uses: x-cmd-action/checkout@v1
-    with:
-      submodules: recursive
-      lfs: true
+- uses: x-cmd-action/checkout@v1
+  with:
+    path: src
+    gitconfig: .github/repo.gitconfig
 ```
 
-`core.hooksPath` is set globally by gitconfig, so every subsequent git command in the job (including the checkout itself and any later `git commit` / `git push`) uses your hooks.
+`.github/repo.gitconfig`:
+
+```ini
+[user]
+    email = repo-specific@example.com
+
+; Git 2.54+ inline hooks
+[hook "pre-commit-lint"]
+    event = pre-commit
+    command = ./scripts/lint.sh
+
+; Older Git: set core.hooksPath manually if you want script-based hooks
+```
+
+The file's contents are merged into the repo's `.git/config` via git's native `[include]`. Anything else already in the repo's config is preserved.
 
 ### Common use cases
 

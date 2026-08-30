@@ -35,23 +35,32 @@
 
 最常见情况就这样 —— 当前 repo + ref + token 的浅 clone，行为同 `actions/checkout`。`with:` 块可选。
 
-### 配合 git hooks（和 `x-cmd-action/gitconfig` 组合）
+### 带 repo-scoped git config（比如这个 checkout 自己的 hooks）
 
-如果 workflow 需要自定义 git hooks（pre-commit lint、commit-msg 签名等），把 checkout 和 [`x-cmd-action/gitconfig`](../gitconfig) 一起用 —— **gitconfig 必须先跑**，让 hooks 在 job 里任何 git 命令之前就位：
+`gitconfig` input 给 **cloned repo 自己**加 `.git/config`（用 `[include] path = <file>`），**不动** `~/.gitconfig` —— job 里其他 repo 不受影响。给单 repo 的特定配置用：自定义 hooks、签名 key、alias 等。
 
 ```yaml
-steps:
-  - uses: x-cmd-action/gitconfig@v1
-    with:
-      hooks-path: .github/hooks
-
-  - uses: x-cmd-action/checkout@v1
-    with:
-      submodules: recursive
-      lfs: true
+- uses: x-cmd-action/checkout@v1
+  with:
+    path: src
+    gitconfig: .github/repo.gitconfig
 ```
 
-`core.hooksPath` 由 gitconfig 全局设好，job 里后续所有 git 命令（checkout 本身、之后的 `git commit` / `git push` 等）都跑你设的 hooks。
+`.github/repo.gitconfig`：
+
+```ini
+[user]
+    email = repo-specific@example.com
+
+; Git 2.54+ 内联 hooks
+[hook "pre-commit-lint"]
+    event = pre-commit
+    command = ./scripts/lint.sh
+
+; 旧版 Git：要 script-based hooks 的话，手动设 core.hooksPath
+```
+
+文件内容通过 git 原生 `[include]` 合并进 repo 的 `.git/config`。repo 已有的其他 config 都保留。
 
 ### 常见用例
 
