@@ -6,7 +6,11 @@ set -euo errexit
 DEBUG_LOG="${RUNNER_TEMP:-/tmp}/checkout-debug.log"
 : > "$DEBUG_LOG"
 log() { printf '%s\n' "$*" | tee -a "$DEBUG_LOG" >&2; }
-log "checkout.sh start; cwd=$(pwd); INPUT_PATH=${INPUT_PATH:-<unset>}"
+log "checkout.sh start; cwd=$(pwd)"
+log "INPUT_PATH=${INPUT_PATH-<unset>}"
+log "INPUT_REPOSITORY=${INPUT_REPOSITORY-<unset>}"
+log "INPUT_REF=${INPUT_REF-<unset>}"
+log "ALL INPUT env: $(env | grep ^INPUT_ | tr '\n' ' ')"
 
 # ───────────────────── inputs ─────────────────────
 REPOSITORY="${INPUT_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
