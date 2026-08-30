@@ -6,6 +6,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: checkout the action's own repo (so action.yml is at $GITHUB_WORKSPACE)
+        uses: actions/checkout@v4
+
       # ─── known-hosts-url: tested via the merge-probe below ───
       # We can't easily test an actual SSH clone to a non-GitHub host on the
       # runner without standing up a real SSH server, so the action's
@@ -90,13 +93,13 @@ jobs:
       # ─── ssh-user: input is accepted (cannot actually test without a real SSH server) ───
       - name: verify ssh-user input is defined in action.yml
         run: |
-          grep -q "^  ssh-user:" action.yml \
+          grep -q "^  ssh-user:" "$GITHUB_WORKSPACE/action.yml" \
             && echo "OK: ssh-user input defined in action.yml"
 
       # ─── allow-unsafe-pr-checkout: input is accepted ───
       - name: verify allow-unsafe-pr-checkout input is defined in action.yml
         run: |
-          grep -q "^  allow-unsafe-pr-checkout:" action.yml \
+          grep -q "^  allow-unsafe-pr-checkout:" "$GITHUB_WORKSPACE/action.yml" \
             && echo "OK: allow-unsafe-pr-checkout input defined in action.yml"
 
       # ─── Inputs parity vs actions/checkout ───
@@ -111,7 +114,7 @@ jobs:
           )
           MISSING=()
           for input in "${EXPECTED[@]}"; do
-            if ! grep -q "^  ${input}:" action.yml; then
+            if ! grep -q "^  ${input}:" "$GITHUB_WORKSPACE/action.yml"; then
               MISSING+=("$input")
             fi
           done
@@ -125,14 +128,14 @@ jobs:
       - name: verify all 3 x-cmd enhancements are present
         run: |
           for input in known-hosts-url fetch-additional gitconfig; do
-            grep -q "^  ${input}:" action.yml \
+            grep -q "^  ${input}:" "$GITHUB_WORKSPACE/action.yml" \
               && echo "OK: $input (x-cmd enhancement) defined"
           done
 
       # ─── require-ssh-key was REMOVED (parity cleanup) ───
       - name: verify require-ssh-key was removed (not in actions/checkout)
         run: |
-          if grep -q "^  require-ssh-key:" action.yml; then
+          if grep -q "^  require-ssh-key:" "$GITHUB_WORKSPACE/action.yml"; then
             echo "ERROR: require-ssh-key still present (should be removed for 1:1 parity)"
             exit 1
           fi
