@@ -35,6 +35,24 @@
 
 最常见情况就这样 —— 当前 repo + ref + token 的浅 clone，行为同 `actions/checkout`。`with:` 块可选。
 
+### 配合 git hooks（和 `x-cmd-action/gitconfig` 组合）
+
+如果 workflow 需要自定义 git hooks（pre-commit lint、commit-msg 签名等），把 checkout 和 [`x-cmd-action/gitconfig`](../gitconfig) 一起用 —— **gitconfig 必须先跑**，让 hooks 在 job 里任何 git 命令之前就位：
+
+```yaml
+steps:
+  - uses: x-cmd-action/gitconfig@v1
+    with:
+      hooks-path: .github/hooks
+
+  - uses: x-cmd-action/checkout@v1
+    with:
+      submodules: recursive
+      lfs: true
+```
+
+`core.hooksPath` 由 gitconfig 全局设好，job 里后续所有 git 命令（checkout 本身、之后的 `git commit` / `git push` 等）都跑你设的 hooks。
+
 ### 常见用例
 
 **全量历史** —— 给 `git log` / `git blame` 用：

@@ -29,6 +29,24 @@ If you don't want x-cmd in your CI at all, this action works fine standalone. It
 
 That's it for the common case — shallow clone of the current repo, ref, and token, defaulting to `actions/checkout`'s behavior. The `with:` block is optional.
 
+### With git hooks (composing with `x-cmd-action/gitconfig`)
+
+If your workflow needs custom git hooks (pre-commit lint, commit-msg signing, etc.), pair checkout with [`x-cmd-action/gitconfig`](../gitconfig) — gitconfig must run first so the hooks are in place before any git command in the job:
+
+```yaml
+steps:
+  - uses: x-cmd-action/gitconfig@v1
+    with:
+      hooks-path: .github/hooks
+
+  - uses: x-cmd-action/checkout@v1
+    with:
+      submodules: recursive
+      lfs: true
+```
+
+`core.hooksPath` is set globally by gitconfig, so every subsequent git command in the job (including the checkout itself and any later `git commit` / `git push`) uses your hooks.
+
 ### Common use cases
 
 **Full history** — for `git log` / `git blame` across all commits:
