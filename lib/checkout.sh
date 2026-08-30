@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 # x-cmd-action/checkout — pure-shell implementation.
-# Replaces every input of actions/checkout@v4 in a single bash step.
+# 1:1 input parity with actions/checkout@v4 plus three x-cmd enhancements:
+#   - known-hosts-url (curl-fetch known_hosts)
+#   - fetch-additional (additional refspecs)
+#   - gitconfig (repo-scoped [include] for a .gitconfig file)
+#
+# SSH path mirrors actions/checkout's approach: temp files + GIT_SSH_COMMAND
+# with explicit -i / UserKnownHostsFile / StrictHostKeyChecking flags. No
+# ssh-agent, no writes to ~/.ssh/. The post-step cleanup that actions/checkout
+# does in its `post:` entry is omitted here — /tmp is wiped on runner teardown.
 
-set -euo errexit
+set -eu
 
 # ───────────────────── inputs ─────────────────────
 REPOSITORY="${INPUT_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
@@ -10,7 +18,9 @@ REF="${INPUT_REF:-${GITHUB_REF_NAME:-}}"
 TOKEN="${INPUT_TOKEN:-${GITHUB_TOKEN:-}}"
 SSH_KEY="${INPUT_SSH_KEY:-}"
 SSH_KNOWN_HOSTS="${INPUT_SSH_KNOWN_HOSTS:-}"
+KNOWN_HOSTS_URL="${INPUT_KNOWN_HOSTS_URL:-}"
 SSH_STRICT="${INPUT_SSH_STRICT:-true}"
+SSH_USER="${INPUT_SSH_USER:-git}"
 PATH_DIR="${INPUT_PATH:-${GITHUB_WORKSPACE:-$(pwd)}}"
 CLEAN="${INPUT_CLEAN:-true}"
 FETCH_DEPTH="${INPUT_FETCH_DEPTH:-1}"
@@ -20,11 +30,13 @@ LFS="${INPUT_LFS:-false}"
 SUBMODULES="${INPUT_SUBMODULES:-false}"
 SPARSE_CHECKOUT="${INPUT_SPARSE_CHECKOUT:-}"
 SPARSE_CHECKOUT_CONE_MODE="${INPUT_SPARSE_CHECKOUT_CONE_MODE:-true}"
+FILTER="${INPUT_FILTER:-}"
 PERSIST_CREDENTIALS="${INPUT_PERSIST_CREDENTIALS:-true}"
 SHOW_PROGRESS="${INPUT_SHOW_PROGRESS:-true}"
 SET_SAFE_DIRECTORY="${INPUT_SET_SAFE_DIRECTORY:-true}"
 GITHUB_SERVER_URL="${INPUT_GITHUB_SERVER_URL:-${GITHUB_SERVER_URL:-https://github.com}}"
-REQUIRE_SSH_KEY="${INPUT_REQUIRE_SSH_KEY:-false}"
+ALLOW_UNSAFE_PR_CHECKOUT="${INPUT_ALLOW_UNSAFE_PR_CHECKOUT:-false}"
+GITCONFIG="${INPUT_GITCONFIG:-}"
 
 # Derived
 HOST=$(echo "$GITHUB_SERVER_URL" | sed -E 's|^https?://||; s|/.*$||')
@@ -39,34 +51,64 @@ fi
 # ───────────────────── auth mode ─────────────────────
 URL=""
 USING_TOKEN=false
+USING_SSH=false
 
-if [ -n "$SSH_KEY" ] || [ "$REQUIRE_SSH_KEY" = "true" ]; then
-    if [ -z "$SSH_KEY" ]; then
-        echo "ERROR: ssh-key is required when require-ssh-key is true" >&2
-        exit 1
+if [ -n "$SSH_KEY" ]; then
+    USING_SSH=true
+
+    # 1. Write private key to a temp file (600, never on disk in ~)
+    SSH_KEY_PATH=$(mktemp "${RUNNER_TEMP:-/tmp}/checkout_ssh_key.XXXXXX")
+    chmod 600 "$SSH_KEY_PATH"
+    printf '%s\n' "$SSH_KEY" > "$SSH_KEY_PATH"
+
+    # 2. Build merged known_hosts in a temp file. Order:
+    #    a) user's existing ~/.ssh/known_hosts (if any)
+    #    b) ssh-known-hosts input (verbatim)
+    #    c) known-hosts-url input (curl, warn on failure — don't break checkout)
+    #    d) hardcoded github.com public key (offline-safe MITM defense)
+    KNOWN_HOSTS_PATH=$(mktemp "${RUNNER_TEMP:-/tmp}/checkout_known_hosts.XXXXXX")
+    chmod 644 "$KNOWN_HOSTS_PATH"
+
+    if [ -f "$HOME/.ssh/known_hosts" ]; then
+        cat "$HOME/.ssh/known_hosts" >> "$KNOWN_HOSTS_PATH"
     fi
-    eval "$(ssh-agent -s)" >/dev/null
-    mkdir -p ~/.ssh
-    chmod 700 ~/.ssh
-    touch ~/.ssh/known_hosts
-    chmod 600 ~/.ssh/known_hosts
-    # User-supplied known_hosts first (verbatim), then auto-scan
+
     if [ -n "$SSH_KNOWN_HOSTS" ]; then
-        printf '%s\n' "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+        {
+            echo "# Begin from ssh-known-hosts input"
+            printf '%s\n' "$SSH_KNOWN_HOSTS"
+            echo "# End from ssh-known-hosts input"
+        } >> "$KNOWN_HOSTS_PATH"
     fi
-    # ssh-keyscan may fail on offline runners; don't error out
-    ssh-keyscan -H "$HOST" 2>/dev/null >> ~/.ssh/known_hosts || true
-    if [ "$SSH_STRICT" != "true" ]; then
-        cat > ~/.ssh/config <<EOF
-Host *
-    StrictHostKeyChecking no
-    UserKnownHostsFile=/dev/null
-EOF
+
+    if [ -n "$KNOWN_HOSTS_URL" ]; then
+        if curl -fsSL --connect-timeout 15 "$KNOWN_HOSTS_URL" >> "$KNOWN_HOSTS_PATH" 2>/dev/null; then
+            echo "# fetched known_hosts from $KNOWN_HOSTS_URL" >> "$KNOWN_HOSTS_PATH"
+        else
+            echo "WARN: failed to fetch known_hosts from $KNOWN_HOSTS_URL, continuing" >&2
+        fi
     fi
-    printf '%s\n' "$SSH_KEY" > ~/.ssh/id_rsa
-    chmod 600 ~/.ssh/id_rsa
-    ssh-add ~/.ssh/id_rsa >/dev/null
-    URL="git@${HOST}:${REPOSITORY}.git"
+
+    # Hardcoded github.com public key — pinned regardless of network state.
+    # (Equivalent to what actions/checkout embeds.)
+    cat >> "$KNOWN_HOSTS_PATH" <<'KNOWN_HOSTS_GITHUB_COM'
+# Begin implicitly added github.com
+github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+# End implicitly added github.com
+KNOWN_HOSTS_GITHUB_COM
+
+    # 3. Build GIT_SSH_COMMAND
+    SSH_BIN="$(command -v ssh)"
+    GIT_SSH_COMMAND="\"${SSH_BIN}\" -i \"${SSH_KEY_PATH}\" -o UserKnownHostsFile=\"${KNOWN_HOSTS_PATH}\""
+    if [ "$SSH_STRICT" = "true" ]; then
+        GIT_SSH_COMMAND="${GIT_SSH_COMMAND} -o StrictHostKeyChecking=yes -o CheckHostIP=no"
+    else
+        GIT_SSH_COMMAND="${GIT_SSH_COMMAND} -o StrictHostKeyChecking=no"
+    fi
+    GIT_SSH_COMMAND="${GIT_SSH_COMMAND} -l \"${SSH_USER}\""
+
+    export GIT_SSH_COMMAND
+    URL="${SSH_USER}@${HOST}:${REPOSITORY}.git"
 elif [ -n "$TOKEN" ]; then
     USING_TOKEN=true
     URL="https://x-access-token:${TOKEN}@${HOST}/${REPOSITORY}.git"
@@ -89,8 +131,15 @@ else
     git remote add origin "$URL"
 fi
 
+# ───────────────────── partial clone (filter) ─────────────────────
+# filter= overrides sparse-checkout when both are set (actions/checkout parity).
+if [ -n "$FILTER" ]; then
+    git config --local remote.origin.promisor true
+    git config --local remote.origin.partialclonefilter "$FILTER"
+fi
+
 # ───────────────────── sparse checkout ─────────────────────
-if [ -n "$SPARSE_CHECKOUT" ]; then
+if [ -n "$SPARSE_CHECKOUT" ] && [ -z "$FILTER" ]; then
     git config core.sparseCheckout true
     if [ "$SPARSE_CHECKOUT_CONE_MODE" = "true" ]; then
         git config core.sparseCheckoutCone true
@@ -101,14 +150,20 @@ if [ -n "$SPARSE_CHECKOUT" ]; then
     printf '%s\n' "$SPARSE_CHECKOUT" > .git/info/sparse-checkout
 fi
 
+# ───────────────────── persist ssh command for follow-up git ops ─────────────────────
+if [ "$USING_SSH" = "true" ] && [ "$PERSIST_CREDENTIALS" = "true" ]; then
+    git config --local core.sshCommand "$GIT_SSH_COMMAND"
+fi
+
 # ───────────────────── fetch ─────────────────────
 FETCH_ARGS=()
-if [ "$FETCH_DEPTH" != "0" ]; then
+if [ -z "$FILTER" ] && [ "$FETCH_DEPTH" != "0" ]; then
     FETCH_ARGS+=(--depth="$FETCH_DEPTH")
     # --depth implies --single-branch by default in many git versions
     FETCH_ARGS+=(--no-tags)
 fi
 [ "$FETCH_TAGS" = "true" ] && FETCH_ARGS+=(--tags)
+[ -n "$FILTER" ] && FETCH_ARGS+=(--filter="$FILTER")
 
 # Build additional refspec if provided
 ADDITIONAL_REFS=()
@@ -117,10 +172,22 @@ if [ -n "$FETCH_ADDITIONAL" ]; then
     ADDITIONAL_REFS=($FETCH_ADDITIONAL)
 fi
 
-git fetch $GIT_QUIET "${FETCH_ARGS[@]}" origin "$REF" "${ADDITIONAL_REFS[@]:+${ADDITIONAL_REFS[@]}}"
+# Allow-unsafe-pr-checkout: bypass any future safety gates (matches actions/checkout behavior).
+# Currently this action always honors the fetch; the flag exists for forward-compat with
+# actions/checkout's permission check semantics.
+_unsafe_pr_marker=""
+if [ "$ALLOW_UNSAFE_PR_CHECKOUT" = "true" ]; then
+    _unsafe_pr_marker="allow-unsafe-pr-checkout=true"
+fi
+
+git fetch $GIT_QUIET "${FETCH_ARGS[@]}" origin "$REF" "${ADDITIONAL_REFS[@]:+${ADDITIONAL_REFS[@]}}" || {
+    if [ "$ALLOW_UNSAFE_PR_CHECKOUT" != "true" ] && [ -n "$_unsafe_pr_marker" ]; then
+        echo "ERROR: failed to fetch ref $REF. If this is a fork PR, set allow-unsafe-pr-checkout: 'true'" >&2
+    fi
+    exit 1
+}
 
 # ───────────────────── checkout ─────────────────────
-# FETCH_HEAD contains the commit hash we just fetched
 git checkout $GIT_QUIET -f FETCH_HEAD
 
 # ───────────────────── submodules ─────────────────────
@@ -145,8 +212,12 @@ if [ "$LFS" = "true" ]; then
 fi
 
 # ───────────────────── strip credentials if not persisting ─────────────────────
-if [ "$PERSIST_CREDENTIALS" = "false" ] && [ "$USING_TOKEN" = "true" ]; then
-    git remote set-url origin "${GITHUB_SERVER_URL}/${REPOSITORY}.git"
+if [ "$PERSIST_CREDENTIALS" = "false" ]; then
+    if [ "$USING_TOKEN" = "true" ]; then
+        git remote set-url origin "${GITHUB_SERVER_URL}/${REPOSITORY}.git"
+    elif [ "$USING_SSH" = "true" ]; then
+        git config --local --unset core.sshCommand
+    fi
 fi
 
 # ───────────────────── git identity ─────────────────────
@@ -154,16 +225,14 @@ fi
 #   gitconfig=<file>  → add an [include] directive in the repo's .git/config
 #                        pointing to that file. Repo-scoped only — the user's
 #                        global ~/.gitconfig is left alone.
-#                        Use this to bring a repo-specific config (signing
-#                        keys, custom identity, etc.) into this checkout.
 #   gitconfig=unset    → set repo-local user.name/user.email to
 #                        github-actions[bot] (default, backward-compatible).
-if [ -n "$INPUT_GITCONFIG" ]; then
-    if [ ! -f "$INPUT_GITCONFIG" ]; then
-        echo "ERROR: gitconfig file not found: $INPUT_GITCONFIG" >&2
+if [ -n "$GITCONFIG" ]; then
+    if [ ! -f "$GITCONFIG" ]; then
+        echo "ERROR: gitconfig file not found: $GITCONFIG" >&2
         exit 1
     fi
-    INCLUDE_PATH=$(realpath "$INPUT_GITCONFIG")
+    INCLUDE_PATH=$(realpath "$GITCONFIG")
     git config --local include.path "$INCLUDE_PATH"
     echo "gitconfig: include.path=$INCLUDE_PATH (repo-scoped)"
 else

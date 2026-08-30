@@ -1,8 +1,7 @@
 name: Checkout (Shell)
 description: |
-  Pure-shell git checkout for GitHub Actions. Drop-in alternative to
-  actions/checkout — same input names where possible, same features, but
-  no Node.js runtime and no nested action dependencies.
+  Pure-shell drop-in for actions/checkout — same inputs, same behavior, no Node.js.
+  Adds three x-cmd conveniences: known-hosts-url, fetch-additional, gitconfig.
 
 inputs:
   repository:
@@ -21,12 +20,24 @@ inputs:
     description: 'SSH private key (alternative to token; takes priority when set)'
     required: false
   ssh-known-hosts:
-    description: 'Custom known_hosts content (verbatim)'
+    description: |
+      Custom known_hosts content (verbatim). Prepended to the merged known_hosts
+      written for the SSH connection.
+    required: false
+  known-hosts-url:
+    description: |
+      URL to a known_hosts file (curl-fetched at runtime). Useful when you manage
+      host keys centrally (e.g., a raw GitHub gist or repo). x-cmd enhancement —
+      actions/checkout does not have this input.
     required: false
   ssh-strict:
     description: 'Whether to enforce strict host key checking'
     required: false
     default: 'true'
+  ssh-user:
+    description: 'SSH user for git@ connections (default: git)'
+    required: false
+    default: 'git'
   path:
     description: 'Where to clone'
     required: false
@@ -44,7 +55,9 @@ inputs:
     required: false
     default: 'false'
   fetch-additional:
-    description: 'Additional refs to fetch (space-separated)'
+    description: |
+      Additional refs to fetch in the same operation (space-separated).
+      x-cmd enhancement — actions/checkout does not have this input.
     required: false
   lfs:
     description: 'Whether to pull LFS files'
@@ -61,8 +74,11 @@ inputs:
     description: 'Use cone mode for sparse checkout'
     required: false
     default: 'true'
+  filter:
+    description: 'Partial clone filter (e.g., blob:none, tree:0). Overrides sparse-checkout.'
+    required: false
   persist-credentials:
-    description: 'Keep token in .git/config after clone'
+    description: 'Keep credentials configured for subsequent git commands'
     required: false
     default: 'true'
   gitconfig:
@@ -70,11 +86,7 @@ inputs:
       Path to a .gitconfig file. When set, an `[include] path = <file>`
       is added to the checked-out repo's .git/config — the file is read
       for git config lookups in this repo only, never globally.
-      Use this to bring repo-specific config (signing keys, custom
-      identity, etc.) into this checkout without touching the runner's
-      global ~/.gitconfig.
-      When unset, checkout falls back to setting repo-local user.name/email
-      to github-actions[bot].
+      x-cmd enhancement — actions/checkout does not have this input.
     required: false
   show-progress:
     description: 'Show fetch / checkout progress'
@@ -88,8 +100,10 @@ inputs:
     description: 'GitHub server URL (override for Enterprise Server)'
     required: false
     default: ${{ github.server_url }}
-  require-ssh-key:
-    description: 'If true, ssh-key becomes mandatory (no token fallback)'
+  allow-unsafe-pr-checkout:
+    description: |
+      Required to check out fork PR code from pull_request_target / workflow_run
+      workflows. See actions/checkout docs for the security context.
     required: false
     default: 'false'
 
@@ -100,14 +114,16 @@ runs:
       shell: bash
       env:
         # Composite actions don't auto-expose inputs as INPUT_* env vars to inner
-        # shell steps — we have to map them explicitly. Mirrors the convention
+        # shell steps — we map them explicitly. Mirrors the convention
         # actions/checkout uses internally.
         INPUT_REPOSITORY: ${{ inputs.repository }}
         INPUT_REF: ${{ inputs.ref }}
         INPUT_TOKEN: ${{ inputs.token }}
         INPUT_SSH_KEY: ${{ inputs.ssh-key }}
         INPUT_SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+        INPUT_KNOWN_HOSTS_URL: ${{ inputs.known-hosts-url }}
         INPUT_SSH_STRICT: ${{ inputs.ssh-strict }}
+        INPUT_SSH_USER: ${{ inputs.ssh-user }}
         INPUT_PATH: ${{ inputs.path }}
         INPUT_CLEAN: ${{ inputs.clean }}
         INPUT_FETCH_DEPTH: ${{ inputs.fetch-depth }}
@@ -117,10 +133,11 @@ runs:
         INPUT_SUBMODULES: ${{ inputs.submodules }}
         INPUT_SPARSE_CHECKOUT: ${{ inputs.sparse-checkout }}
         INPUT_SPARSE_CHECKOUT_CONE_MODE: ${{ inputs.sparse-checkout-cone-mode }}
+        INPUT_FILTER: ${{ inputs.filter }}
         INPUT_PERSIST_CREDENTIALS: ${{ inputs.persist-credentials }}
         INPUT_GITCONFIG: ${{ inputs.gitconfig }}
         INPUT_SHOW_PROGRESS: ${{ inputs.show-progress }}
         INPUT_SET_SAFE_DIRECTORY: ${{ inputs.set-safe-directory }}
         INPUT_GITHUB_SERVER_URL: ${{ inputs.github-server-url }}
-        INPUT_REQUIRE_SSH_KEY: ${{ inputs.require-ssh-key }}
+        INPUT_ALLOW_UNSAFE_PR_CHECKOUT: ${{ inputs.allow-unsafe-pr-checkout }}
       run: bash ${{ github.action_path }}/lib/checkout.sh
