@@ -19,7 +19,5 @@ jobs:
           ls -la
           echo "--- cloned (if exists) ---"
           ls -la cloned 2>&1 || echo "cloned DOES NOT EXIST"
-          echo "--- env INPUT_* ---"
-          env | grep -E '^INPUT_' || echo "no INPUT_* env vars"
-          echo "--- searching for cloned anywhere ---"
-          find / -name 'action.yml' -path '*x-cmd-action*' 2>/dev/null | head -5
+          echo "--- debug log from action step ---"
+          cat "${RUNNER_TEMP:-/tmp}/checkout-debug.log" 2>&1 || echo "debug log not found"

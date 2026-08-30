@@ -3,7 +3,10 @@
 # Replaces every input of actions/checkout@v4 in a single bash step.
 
 set -euo errexit
-echo "::debug::checkout.sh start; cwd=$(pwd); INPUT_PATH=${INPUT_PATH:-<unset>}"
+DEBUG_LOG="${RUNNER_TEMP:-/tmp}/checkout-debug.log"
+: > "$DEBUG_LOG"
+log() { printf '%s\n' "$*" | tee -a "$DEBUG_LOG" >&2; }
+log "checkout.sh start; cwd=$(pwd); INPUT_PATH=${INPUT_PATH:-<unset>}"
 
 # ───────────────────── inputs ─────────────────────
 REPOSITORY="${INPUT_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
@@ -80,9 +83,9 @@ if [ "$CLEAN" = "true" ] && [ -d "$PATH_DIR" ]; then
     rm -rf "$PATH_DIR"
 fi
 mkdir -p "$PATH_DIR"
-echo "::debug::PATH_DIR=$PATH_DIR"
+log "PATH_DIR=$PATH_DIR"
 cd "$PATH_DIR"
-echo "::debug::after cd; cwd=$(pwd)"
+log "after cd; cwd=$(pwd)"
 
 # ───────────────────── init / re-init ─────────────────────
 if [ -d ".git" ]; then
