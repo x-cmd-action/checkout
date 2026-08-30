@@ -10,6 +10,17 @@
 
 This action does the same thing in **~200 lines of bash** with `git`, `ssh`, and standard unix tools. No npm dependencies. No nested `uses:`. The whole action is `action.yml` + `lib/checkout.sh`.
 
+## Zero dependencies
+
+This action does **not** depend on x-cmd being installed. It uses only:
+
+- `git` (for the actual clone / fetch / checkout)
+- `ssh-agent`, `ssh-keyscan` (for SSH auth)
+- `curl` (only when fetching `known_hosts`)
+- Standard POSIX shell
+
+If you don't want x-cmd in your CI at all, this action works fine standalone. It is the only action in the `x-cmd-action` org with **no x-cmd requirement**.
+
 ## Usage
 
 ```yaml

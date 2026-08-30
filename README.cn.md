@@ -16,6 +16,17 @@
 
 这个 action 用 **~200 行 bash** 加 `git` / `ssh` / 标准 unix 工具做同样的事。零 npm 依赖，零嵌套 `uses:`。整个 action 就是 `action.yml` + `lib/checkout.sh`。
 
+## 零依赖
+
+这个 action **不依赖 x-cmd 安装**。只用：
+
+- `git`（clone / fetch / checkout 本体）
+- `ssh-agent`、`ssh-keyscan`（SSH 认证）
+- `curl`（仅在拉 `known_hosts` 时）
+- 标准 POSIX shell
+
+如果你完全不想要 x-cmd 出现在 CI 里，这个 action 单独跑就行。它是 `x-cmd-action` org 里**唯一不依赖 x-cmd**的 action。
+
 ## 用法
 
 ```yaml
