@@ -1,6 +1,6 @@
 # x-cmd-action/checkout
 
-> 纯 shell 实现的 [`actions/checkout`](https://github.com/actions/checkout) 替代 —— **input 1:1 兼容，行为对齐，不依赖 Node.js**。再加三个 x-cmd 独家增强。
+> 纯 shell 实现的 [`actions/checkout`](https://github.com/actions/checkout) 替代 —— **兼容** actions/checkout，不依赖 Node.js。Input 同名，常见场景下行为可观察一致。在它之上叠了三个 x-cmd 增强。
 
 [English](./README.md)
 
@@ -25,17 +25,35 @@
 - `curl`（仅在用 `known-hosts-url` 时）
 - 标准 POSIX shell
 
-## 与 `actions/checkout` 的 input 兼容
+## 与 `actions/checkout` 的兼容性
 
-`actions/checkout@v4` 的每一个 input 都有同名同语义对应。在它之上叠了三个 **x-cmd 增强**：
+**同名 input** —— `actions/checkout@v4` 的每一个 input 都支持。Workflow inputs 互换无缝。在它之上叠了三个 x-cmd 增强：
 
 | Input | 来源 |
 | --- | --- |
-| `known-hosts-url` | **x-cmd 增强** —— `curl` 拉 known_hosts |
-| `fetch-additional` | **x-cmd 增强** —— 额外 refspec 一起 fetch |
-| `gitconfig` | **x-cmd 增强** —— repo-scoped `[include] path` 到指定 `.gitconfig` |
+| `known-hosts-url` | **x-cmd 增强** —— `curl` 拉 known_hosts（如从集中的 host key 仓库）|
+| `fetch-additional` | **x-cmd 增强** —— 同一 fetch 操作里额外的 refspec |
+| `gitconfig` | **x-cmd 增强** —— repo-scoped `[include] path` 到 `.gitconfig`（签名 key、自定义 identity、hooks）|
 
-用过 `actions/checkout`，就会用这个。
+用过 `actions/checkout`，就会用这个 —— 三个增强是可选的。
+
+### 实现差异在哪
+
+`actions/checkout` 是一个 TypeScript 模块，里面有精心调优的 git 接线（extraheader 凭证、`includeIf` 作用域、`core.quotepath`、`gc.auto=0`、`url.<origin>/.insteadOf`、`RUNNER_TEMP` 下隔离的 HOME、`post:` step 清理 temp 文件）。这个 action 是一个 bash 脚本，覆盖**可观察的接口** —— 同样的 input、同样的落盘终态。
+
+如果你依赖 `actions/checkout` 的某些微妙内部行为（例如在 Docker container action 里复用 action 的凭证），两者可能不同。对于典型 CI workflow —— clone、设 identity、跑测试、用持久化凭证推回去 —— 这个 action 是 drop-in。Exotic 配置下 `actions/checkout` 在边界情况可能不同。
+
+有意为之的差异：
+
+| 行为 | `actions/checkout` | 本 action |
+| --- | --- | --- |
+| Runtime | bash + Node.js | bash only |
+| `actions/checkout` 的特殊接线（extraheader + `includeIf`、`gc.auto=0`、`core.quotepath`、隔离 HOME、`url.<origin>/.insteadOf`、`post:` temp 清理）| 有 | **无** —— 可观察终态一致，但内部接线更简单 |
+| 硬编码 `github.com` 公钥到 known_hosts | 有（离线防 MITM）| 有 |
+| `persist-credentials: true` 让后续 git 命令可复用凭证 | 有（SSH 走 `core.sshCommand`，HTTPS 走 extraheader + `includeIf`）| 有（SSH 走 `core.sshCommand`，HTTPS 走 URL 内嵌 token）|
+| `set-safe-directory` input | 加 `<repo>` 路径 | 加 `'*'`（更宽）|
+
+如果上面"无"那行的任一对你的 workflow 重要，那一步用 `actions/checkout` 更好。
 
 ## 用法
 
@@ -218,15 +236,31 @@ Temp 文件在 `$RUNNER_TEMP` 下，runner 回收时清理。
 | Windows runner | ✅（Node 路径） | ✅（Git Bash） |
 | 默认 identity | `github-actions[bot]` | `github-actions[bot]` |
 
-**workflow 里把 `actions/checkout@v4` 换成 `x-cmd-action/checkout@v1`，所有 input 都不用改** —— `actions/checkout@v4` 的每个 input 都有同名支持。
+workflow 里把 `actions/checkout@v4` 换成 `x-cmd-action/checkout@v1`，**input 不用改**。是否能在你的具体 workflow 里**可观察终态**也一致，取决于下面的实现差异 —— 大多数 job 可以，但有些不行。
 
-## 已知差异（相对 `actions/checkout`）
+## 实现差异（相对 `actions/checkout`）
 
-- **没有 JS 端的中间计算缓存**。所有 input 在 bash 里读取 —— 外部可观察行为一致。
-- **Sparse checkout**：直接写 `.git/info/sparse-checkout` 文件（`git sparse-checkout set` 内部也就是写这个文件）—— 终态相同。
-- **Submodules + fetch-depth**：透传 `--depth` 给 `git submodule update`。新版 `actions/checkout` 同样行为。
-- **LFS 检测**：如果 `git-lfs` 没装，**打印 warning 后继续**，而不是报错。
-- **`allow-unsafe-pr-checkout`**：input 接受并保留，但这个 action 当前不会主动拒绝跑 fork PR。实际效果一致 —— 控制 checkout 行为的 input（token / ssh-key）仍然需要显式赋值。
+`actions/checkout` 是一个 TypeScript 模块，里面有精心调优的 git 接线。这个 action 是一个 bash 脚本，用更简单的接线达到同样的可观察终态。按"多久踩到"排序：
+
+### 大概率踩到
+
+- **HTTPS 凭证接线**。`actions/checkout` 把 token 写到独立的凭证文件 + `http.<origin>/.extraheader` + `includeIf.gitdir:` —— 这样凭证只 scope 到 cloned repo，不会暴露在 remote URL 里。这个 action 直接把 token 内嵌进 HTTPS URL（`https://x-access-token:***@host/repo.git`），fetch 完后用 `git remote set-url` 剥掉。后续同一 repo 里的 git 命令两种方案都 work —— 但 introspect remote URL 的工具（某些 credential helper、某些 IDE 集成）看到的可能不同。
+- **`url.<origin>/.insteadOf`**。`actions/checkout` 设了这个 —— 后续命令里的 SSH 风格 URL（如 `git@github.com:foo/bar`）会自动用 action 存的凭证重写成 HTTPS。这个 action 没设。如果 workflow 在下游 `git` 命令里用 SSH 风格 URL，`actions/checkout` 更宽容。
+- **HOME 隔离**。`actions/checkout` 把 `core.sshCommand` 等全局配置写到 **`RUNNER_TEMP` 下的临时 HOME**，不动用户的真 `~/.gitconfig`。这个 action 写真 `~/.gitconfig`。如果 runner 的 `~/.gitconfig` 有重要状态，那一步用 `actions/checkout` 更稳。
+
+### 较小概率踩到
+
+- **`set-safe-directory` 默认 `*`**。`actions/checkout` 加特定 repo 路径；这个 action 加 `*`。`*` 更宽，覆盖同样场景。
+- **没设 `core.quotepath = false` / `gc.auto = 0` / `protocol.version = 2`**。`actions/checkout` 设这些是为了大仓库的性能和干净输出。这个 action 用 git 默认。
+- **Sparse-checkout 直接写 `.git/info/sparse-checkout`**。`actions/checkout` 用 `git sparse-checkout set`，写同样文件。终态一样。
+- **Submodule update 带 `--depth`**。这个 action 透传 `--depth` 给 `git submodule update`；`actions/checkout` 同样。
+- **LFS 检测**。这个 action 如果 `git-lfs` 缺失就 warn 继续；`actions/checkout` 会失败。
+- **`allow-unsafe-pr-checkout`**。这个 action 接受 input 并尊重它，但不主动拒绝没它就跑 fork PR。实际效果一致 —— 控制 checkout 行为的 input（token / ssh-key）仍需显式赋值。
+- **没有 `post:` step**。`actions/checkout` 跑 `post:` step 清 temp 文件 + unset state。这个 action 靠 `RUNNER_TEMP` 在 runner teardown 时被清。在 runner 上观察到的行为一致；只有当用户 `source` action 的 env 进自己 state 时才有差别。
+
+### 结论
+
+常见情况 —— clone、设 identity、跑测试、用持久化凭证推回去 —— 这个 action 是 drop-in。Docker container action 里复用 checkout 凭证、或者依赖 action 的 `includeIf.gitdir:` 作用域的 workflow，`actions/checkout` 是更稳的选择。
 
 ## 许可证
 

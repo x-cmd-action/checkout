@@ -1,6 +1,6 @@
 # x-cmd-action/checkout
 
-> Pure-shell drop-in for [`actions/checkout`](https://github.com/actions/checkout) — **same inputs, same behavior, no Node.js**. Adds three x-cmd conveniences on top.
+> Pure-shell alternative to [`actions/checkout`](https://github.com/actions/checkout) — **compatible** with it, **no Node.js**. Same input names; observable behavior matches in the common cases. Three x-cmd enhancements are layered on top.
 
 [中文文档](./README.cn.md)
 
@@ -19,17 +19,35 @@ This action does **not** depend on x-cmd being installed. It uses only:
 - `curl` (only when fetching `known_hosts` from `known-hosts-url`)
 - Standard POSIX shell
 
-## Input parity with `actions/checkout`
+## Compatibility with `actions/checkout`
 
-Every input on `actions/checkout@v4` is supported with the same name and semantics. Three **x-cmd enhancements** are layered on top:
+**Same input names** as `actions/checkout@v4` — you can swap one for the other and your workflow inputs keep working. Three x-cmd enhancements sit on top:
 
 | Input | Source |
 | --- | --- |
-| `known-hosts-url` | **x-cmd enhancement** — `curl`-fetched known_hosts at runtime |
-| `fetch-additional` | **x-cmd enhancement** — extra refspecs in the same fetch |
-| `gitconfig` | **x-cmd enhancement** — repo-scoped `[include] path` to a `.gitconfig` file |
+| `known-hosts-url` | **x-cmd enhancement** — `curl`-fetched known_hosts at runtime (e.g., from a central repo of host keys) |
+| `fetch-additional` | **x-cmd enhancement** — extra refspecs in the same fetch operation |
+| `gitconfig` | **x-cmd enhancement** — repo-scoped `[include] path` to a `.gitconfig` file (signing keys, custom identity, hooks) |
 
-If you've used `actions/checkout`, you already know how to use this one.
+If you've used `actions/checkout`, you already know how to use this one — the three enhancements are opt-in.
+
+### Where the implementations differ
+
+`actions/checkout` is a single TypeScript module with carefully tuned git plumbing (extraheader credentials, `includeIf` scoping, `core.quotepath`, `gc.auto=0`, `url.<origin>/.insteadOf`, isolated `HOME` under `RUNNER_TEMP`, post-step cleanup of temp files). This action is a single bash script that covers the **observable surface** — the same inputs, the same end state on disk.
+
+If you depend on subtle internal behaviors of `actions/checkout` (for example, running git commands inside a Docker container action that reuses the action's credentials), the two may differ. For typical CI workflows — clone, set identity, run tests, push back via persisted credentials — this action is a drop-in. For exotic setups, `actions/checkout` may behave differently in edge cases.
+
+The intentional differences:
+
+| Behavior | `actions/checkout` | This action |
+| --- | --- | --- |
+| Runtime | bash + Node.js bundle | bash only |
+| `actions/checkout` quirks (extraheader + `includeIf`, `gc.auto=0`, `core.quotepath`, isolated `HOME`, `url.<origin>/.insteadOf`, post-step temp cleanup) | yes | **no** — observable end state matches but the internal plumbing is simpler |
+| Hardcoded `github.com` public key in known_hosts | yes (offline-safe MITM defense) | yes |
+| `persist-credentials: true` keeps token reusable for follow-up git commands | yes (via `core.sshCommand` for SSH, `extraheader` + `includeIf` for HTTPS) | yes (via `core.sshCommand` for SSH, URL-embedded token for HTTPS) |
+| `set-safe-directory` input | adds `<repo>` path | adds `'*'` (broader) |
+
+If any of the "no" rows above matters for your workflow, prefer `actions/checkout` for that step.
 
 ## Usage
 
@@ -212,15 +230,31 @@ All inputs below mirror `actions/checkout@v4` unless otherwise noted.
 | Windows runner | ✅ (Node path) | ✅ (Git Bash) |
 | Default identity | `github-actions[bot]` | `github-actions[bot]` |
 
-**You can swap `actions/checkout@v4` for `x-cmd-action/checkout@v1` without changing your workflow inputs.** Every input on `actions/checkout@v4` is supported with the same name.
+You can swap `actions/checkout@v4` for `x-cmd-action/checkout@v1` and your **inputs** keep working. Whether the **observable end state** matches in your specific workflow depends on the implementation differences below — most jobs work, but some don't.
 
-## Known differences from `actions/checkout`
+## Known implementation differences from `actions/checkout`
 
-- **No JS-side caching of computed values.** All inputs are evaluated at action runtime via shell. Same observable behavior.
-- **Sparse-checkout**: written to `.git/info/sparse-checkout` (which is what `git` reads). `actions/checkout` uses `git sparse-checkout set`, a thin wrapper around the same file — same end state.
-- **Submodules with `fetch-depth`**: pass `--depth` to `git submodule update`. `actions/checkout` does the same in newer versions.
-- **LFS detection**: if `git-lfs` isn't installed, prints a warning and continues instead of failing.
-- **`allow-unsafe-pr-checkout`**: the flag is accepted and respected, but this action does not currently refuse to run on fork PRs without it. Same effective behavior because the inputs that govern checkout behavior (token, ssh-key) still need explicit values.
+`actions/checkout` is a single TypeScript module with carefully tuned git plumbing. This action is a single bash script that hits the same observable end state via simpler plumbing. The differences, in order of how often they matter:
+
+### Likely to matter
+
+- **HTTPS credential plumbing.** `actions/checkout` writes the token to a separate credentials file and uses `http.<origin>/.extraheader` + `includeIf.gitdir:` so that credentials are scoped to the cloned repo and not exposed via the remote URL. This action embeds the token directly into the HTTPS URL (`https://x-access-token:***@host/repo.git`) and strips it back out via `git remote set-url` after fetch. For follow-up git commands in the same repo, both approaches work — but tools that introspect the remote URL (some credential helpers, some IDE integrations) may see different things.
+- **`url.<origin>/.insteadOf`.** `actions/checkout` sets this so that an SSH-style URL like `git@github.com:foo/bar` in subsequent commands is automatically rewritten to HTTPS using the action's stored credentials. This action does not. If your workflow uses SSH-style URLs in downstream `git` commands, `actions/checkout` is more forgiving.
+- **HOME isolation.** `actions/checkout` writes its `core.sshCommand` and other global config to a **temporary HOME under `RUNNER_TEMP`** so the user's real `~/.gitconfig` is untouched. This action writes to the real `~/.gitconfig`. If your runner has important state in `~/.gitconfig`, prefer `actions/checkout` for that step.
+
+### Unlikely to matter
+
+- **`set-safe-directory` defaults to `*`.** `actions/checkout` adds the specific repo path; this action adds `*`. `*` is broader but covers the same use cases.
+- **No `core.quotepath = false` / `gc.auto = 0` / `protocol.version = 2` tweaks.** `actions/checkout` sets these for performance and clean output on big repos. This action relies on git defaults.
+- **Sparse-checkout is written directly to `.git/info/sparse-checkout`.** `actions/checkout` uses `git sparse-checkout set`, which writes the same file. End state is identical.
+- **Submodule update with `--depth`.** This action passes `--depth` to `git submodule update`; `actions/checkout` does the same.
+- **LFS detection.** This action prints a warning and continues if `git-lfs` is missing; `actions/checkout` fails.
+- **`allow-unsafe-pr-checkout`.** This action accepts the input and respects it but does not actively refuse to run on fork PRs without it. Same observable effect because the inputs that drive checkout (token, ssh-key) still need to be set explicitly.
+- **No `post:` step.** `actions/checkout` runs a `post:` step to clean up temp files and unset state. This action relies on `RUNNER_TEMP` being wiped on runner teardown. Observable behavior on the runner matches; only matters if you `source` the action's env into your own state.
+
+### Bottom line
+
+For the common case — clone, set identity, run tests, push back via persisted credentials — this action is a drop-in. For Docker-container actions that reuse the checkout's credentials, or workflows that rely on the action's `includeIf.gitdir:` scoping, `actions/checkout` is the safer pick.
 
 ## License
 
