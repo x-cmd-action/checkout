@@ -79,7 +79,7 @@ Same input names as `actions/checkout` where possible. The default `repository` 
 | Input | Default | Description |
 | --- | --- | --- |
 | `persist-credentials` | `true` | keep token in `.git/config` after clone |
-| `gitconfig` | — | Path to a `.gitconfig` file. Copied to `~/.gitconfig` (mode 0600). Use to bring a repo-specific config (signing keys, custom identity) into the runner. |
+| `gitconfig` | — | Path to a `.gitconfig` file. An `[include] path = <file>` is added to the checked-out repo's `.git/config` — the file is read for git config lookups in this repo only, never globally. |
 | `show-progress` | `true` | show git progress in logs |
 | `set-safe-directory` | `true` | auto-add `safe.directory '*'` (container safety) |
 

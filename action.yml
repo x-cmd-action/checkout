@@ -67,12 +67,14 @@ inputs:
     default: 'true'
   gitconfig:
     description: |
-      Path to a .gitconfig file. When set, the file is copied to ~/.gitconfig
-      (mode 0600) — applies that config globally for the rest of the job.
-      Use this to bring a repo-specific config (signing keys, custom user
-      identity, etc.) into the runner.
-      When unset, checkout falls back to its default: set repo-local
-      user.name/user.email to github-actions[bot].
+      Path to a .gitconfig file. When set, an `[include] path = <file>`
+      is added to the checked-out repo's .git/config — the file is read
+      for git config lookups in this repo only, never globally.
+      Use this to bring repo-specific config (signing keys, custom
+      identity, etc.) into this checkout without touching the runner's
+      global ~/.gitconfig.
+      When unset, checkout falls back to setting repo-local user.name/email
+      to github-actions[bot].
     required: false
   show-progress:
     description: 'Show fetch / checkout progress'

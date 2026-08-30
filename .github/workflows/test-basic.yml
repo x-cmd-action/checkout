@@ -38,7 +38,14 @@ jobs:
           path: ./gc
           gitconfig: ./.github/workflows/test.gitconfig
 
-      - name: verify global gitconfig was applied
+      - name: verify gitconfig include was applied (repo-scoped)
         run: |
-          test "$(git config --global user.name)" = "test-checkout-bot" && echo "OK: user.name from file applied globally"
-          test "$(git config --global user.email)" = "test-checkout-bot@example.com" && echo "OK: user.email from file applied globally"
+          cd gc
+          # Confirm the [include] entry is in .git/config
+          grep -q "include" .git/config && echo "OK: include directive in .git/config"
+          # Confirm the included values are visible via git config in the repo
+          test "$(git config user.name)" = "test-checkout-bot" && echo "OK: user.name from file applied (repo-scoped)"
+          test "$(git config user.email)" = "test-checkout-bot@example.com" && echo "OK: user.email from file applied (repo-scoped)"
+          # Confirm global ~/.gitconfig was NOT touched
+          cd "$HOME" 2>/dev/null || cd /
+          test "$(git config --global user.name 2>/dev/null || echo)" != "test-checkout-bot" && echo "OK: global ~/.gitconfig untouched"
