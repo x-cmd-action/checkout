@@ -9,7 +9,7 @@ jobs:
       - name: checkout via x-cmd-action/checkout (default path = workspace)
         uses: x-cmd-action/checkout@main
 
-      - name: verify clone landed in workspace
+      - name: verify clone landed in workspace and bot identity
         run: |
           echo "=== top-level ==="
           ls
@@ -17,9 +17,11 @@ jobs:
           head -3 action.yml
           echo "=== checkout.sh head ==="
           head -3 lib/checkout.sh
-          echo "=== git identity ==="
+          echo "=== git identity (default bot) ==="
           git config user.name
           git config user.email
+          test "$(git config user.name)" = "github-actions[bot]" && echo "OK: default bot user.name"
+          test "$(git config user.email)" = "github-actions[bot]@users.noreply.github.com" && echo "OK: default bot user.email"
 
       - name: checkout into custom path
         uses: x-cmd-action/checkout@main
@@ -32,20 +34,20 @@ jobs:
           ls custom-path
           test -f custom-path/action.yml && echo "OK: action.yml present in custom-path"
 
-      - name: checkout with gitconfig file
+      - name: checkout with local-config (repo-scoped .gitconfig)
         uses: x-cmd-action/checkout@main
         with:
-          path: ./gc
-          gitconfig: ./.github/workflows/test.gitconfig
+          path: ./lc
+          local-config: ./.github/workflows/test.gitconfig
 
-      - name: verify gitconfig include was applied (repo-scoped)
+      - name: verify local-config include was applied (repo-scoped)
         run: |
-          cd gc
+          cd lc
           # Confirm the [include] entry is in .git/config
           grep -q "include" .git/config && echo "OK: include directive in .git/config"
           # Confirm the included values are visible via git config in the repo
-          test "$(git config user.name)" = "test-checkout-bot" && echo "OK: user.name from file applied (repo-scoped)"
-          test "$(git config user.email)" = "test-checkout-bot@example.com" && echo "OK: user.email from file applied (repo-scoped)"
+          test "$(git config user.name)" = "test-checkout-bot" && echo "OK: user.name from file applied (repo-scoped via local-config)"
+          test "$(git config user.email)" = "test-checkout-bot@example.com" && echo "OK: user.email from file applied (repo-scoped via local-config)"
           # Confirm global ~/.gitconfig was NOT touched
           cd "$HOME" 2>/dev/null || cd /
           test "$(git config --global user.name 2>/dev/null || echo)" != "test-checkout-bot" && echo "OK: global ~/.gitconfig untouched"

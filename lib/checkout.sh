@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # x-cmd-action/checkout — pure-shell implementation.
-# 1:1 input parity with actions/checkout@v4 plus three x-cmd enhancements:
+# 1:1 input parity with actions/checkout@v4 plus x-cmd enhancements:
 #   - known-hosts-url (curl-fetch known_hosts)
 #   - fetch-additional (additional refspecs)
-#   - gitconfig (repo-scoped [include] for a .gitconfig file)
+#   - local-config (repo-scoped [include] for a .gitconfig file — repo-local
+#     hooks, signing keys, identity overrides, etc.)
 #
 # SSH path mirrors actions/checkout's approach: temp files + GIT_SSH_COMMAND
 # with explicit -i / UserKnownHostsFile / StrictHostKeyChecking flags. No
@@ -36,7 +37,7 @@ SHOW_PROGRESS="${INPUT_SHOW_PROGRESS:-true}"
 SET_SAFE_DIRECTORY="${INPUT_SET_SAFE_DIRECTORY:-true}"
 GITHUB_SERVER_URL="${INPUT_GITHUB_SERVER_URL:-${GITHUB_SERVER_URL:-https://github.com}}"
 ALLOW_UNSAFE_PR_CHECKOUT="${INPUT_ALLOW_UNSAFE_PR_CHECKOUT:-false}"
-GITCONFIG="${INPUT_GITCONFIG:-}"
+LOCAL_CONFIG="${INPUT_LOCAL_CONFIG:-}"
 
 # Derived
 HOST=$(echo "$GITHUB_SERVER_URL" | sed -E 's|^https?://||; s|/.*$||')
@@ -220,22 +221,20 @@ if [ "$PERSIST_CREDENTIALS" = "false" ]; then
     fi
 fi
 
-# ───────────────────── git identity ─────────────────────
-# Two paths:
-#   gitconfig=<file>  → add an [include] directive in the repo's .git/config
-#                        pointing to that file. Repo-scoped only — the user's
-#                        global ~/.gitconfig is left alone.
-#   gitconfig=unset    → set repo-local user.name/user.email to
-#                        github-actions[bot] (default, backward-compatible).
-if [ -n "$GITCONFIG" ]; then
-    if [ ! -f "$GITCONFIG" ]; then
-        echo "ERROR: gitconfig file not found: $GITCONFIG" >&2
+# ───────────────────── git identity + repo-scoped config ─────────────────────
+# Always set the bot identity (matches actions/checkout's behavior). If
+# local-config is set, it overlays repo-specific values (signing keys,
+# custom identity, etc.) via [include] — git's config precedence means
+# the local file's values win for keys that overlap.
+git config user.name "github-actions[bot]"
+git config user.email "github-actions[bot]@users.noreply.github.com"
+
+if [ -n "$LOCAL_CONFIG" ]; then
+    if [ ! -f "$LOCAL_CONFIG" ]; then
+        echo "ERROR: local-config file not found: $LOCAL_CONFIG" >&2
         exit 1
     fi
-    INCLUDE_PATH=$(realpath "$GITCONFIG")
+    INCLUDE_PATH=$(realpath "$LOCAL_CONFIG")
     git config --local include.path "$INCLUDE_PATH"
-    echo "gitconfig: include.path=$INCLUDE_PATH (repo-scoped)"
-else
-    git config user.name "github-actions[bot]"
-    git config user.email "github-actions[bot]@users.noreply.github.com"
+    echo "local-config: include.path=$INCLUDE_PATH (repo-scoped)"
 fi

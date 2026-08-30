@@ -81,13 +81,6 @@ inputs:
     description: 'Keep credentials configured for subsequent git commands'
     required: false
     default: 'true'
-  gitconfig:
-    description: |
-      Path to a .gitconfig file. When set, an `[include] path = <file>`
-      is added to the checked-out repo's .git/config — the file is read
-      for git config lookups in this repo only, never globally.
-      x-cmd enhancement — actions/checkout does not have this input.
-    required: false
   show-progress:
     description: 'Show fetch / checkout progress'
     required: false
@@ -106,6 +99,13 @@ inputs:
       workflows. See actions/checkout docs for the security context.
     required: false
     default: 'false'
+  local-config:
+    description: |
+      Path to a .gitconfig file. When set, added as [include] in the checked-out
+      repo's .git/config — repo-scoped only, the runner's ~/.gitconfig is left
+      alone. Use this for repo-specific signing keys, custom identity, etc.
+      x-cmd enhancement — actions/checkout does not have this input.
+    required: false
 
 runs:
   using: composite
@@ -135,9 +135,9 @@ runs:
         INPUT_SPARSE_CHECKOUT_CONE_MODE: ${{ inputs.sparse-checkout-cone-mode }}
         INPUT_FILTER: ${{ inputs.filter }}
         INPUT_PERSIST_CREDENTIALS: ${{ inputs.persist-credentials }}
-        INPUT_GITCONFIG: ${{ inputs.gitconfig }}
         INPUT_SHOW_PROGRESS: ${{ inputs.show-progress }}
         INPUT_SET_SAFE_DIRECTORY: ${{ inputs.set-safe-directory }}
         INPUT_GITHUB_SERVER_URL: ${{ inputs.github-server-url }}
         INPUT_ALLOW_UNSAFE_PR_CHECKOUT: ${{ inputs.allow-unsafe-pr-checkout }}
+        INPUT_LOCAL_CONFIG: ${{ inputs.local-config }}
       run: bash ${{ github.action_path }}/lib/checkout.sh
