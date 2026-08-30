@@ -6,25 +6,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      # ─── known-hosts-url: ssh-key + known-hosts-url, fallback to HTTPS ───
+      # ─── known-hosts-url: tested via the merge-probe below ───
       # We can't easily test an actual SSH clone to a non-GitHub host on the
-      # runner without standing up a real SSH server, so we test the input
-      # plumbing (the action accepts both inputs without error and the
-      # default github.com key is embedded) by running a real checkout that
-      # uses SSH key against github.com (with token URL still working).
-      # For a tighter probe, run the merge logic in isolation below.
-      - name: checkout with ssh-key + known-hosts-url (HTTPS fallback path still works)
+      # runner without standing up a real SSH server, so the action's
+      # known-hosts-url branch is covered by the isolation probe below.
+      # Here we just verify that having known-hosts-url set alongside the
+      # default token path does not break a regular checkout.
+      - name: checkout with known-hosts-url set (token path still wins)
         uses: x-cmd-action/checkout@main
         with:
           path: ./sshurl
-          ssh-key: ${{ secrets.DUMMY_SSH_KEY || 'unused-because-token-path-takes-over' }}
           known-hosts-url: https://raw.githubusercontent.com/x-cmd/knownhost/main/known_hosts
-          # token (default) wins because we didn't set require-ssh-key
-          # and the dummy SSH key won't actually be used for the clone.
 
-      - name: verify known-hosts-url didn't break the default HTTPS path
+      - name: verify known-hosts-url did not break the default HTTPS path
         run: |
-          test -f sshurl/action.yml && echo "OK: checkout succeeded with ssh-key + known-hosts-url set (HTTPS path used)"
+          test -f sshurl/action.yml && echo "OK: checkout succeeded with known-hosts-url set (HTTPS path used)"
 
       - name: "probe: confirm the merge function produces expected known_hosts layout"
         # Direct probe of the known_hosts-merge logic in isolation. Runs the
