@@ -32,10 +32,11 @@
 ```yaml
 - uses: x-cmd-action/checkout@v1
   with:
-    fetch-depth: 0
     submodules: recursive
     lfs: true
 ```
+
+默认浅 clone（`fetch-depth: 1`，同 `actions/checkout`）。需要全量历史时设 `fetch-depth: 0`。
 
 input 名称尽量和 `actions/checkout` 对齐。`repository` / `ref` 的默认值来自 `github.*` context，行为一致。
 

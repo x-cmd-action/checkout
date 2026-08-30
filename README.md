@@ -26,10 +26,11 @@ If you don't want x-cmd in your CI at all, this action works fine standalone. It
 ```yaml
 - uses: x-cmd-action/checkout@v1
   with:
-    fetch-depth: 0
     submodules: recursive
     lfs: true
 ```
+
+Default is shallow clone (`fetch-depth: 1`, same as `actions/checkout`). Set `fetch-depth: 0` if you need full history.
 
 Same input names as `actions/checkout` where possible. The default `repository` / `ref` come from `github.*` context just like `actions/checkout`.
 
