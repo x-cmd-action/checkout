@@ -6,105 +6,102 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     steps:
-      - name: write results
-        run: |
-          mkdir -p /tmp/bench-results
-          echo "Benchmark: actions/checkout@v4 vs x-cmd-action/checkout@v1"
-          echo "Repo: x-cmd-action/checkout (this repo)"
-          echo "Runner: ubuntu-latest (fresh VM per run)"
-          echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo ""
+      - name: prepare benchmark dir
+        run: mkdir -p /tmp/bench
 
-      # ─── Run each action multiple times back-to-back so we measure the cached
-      # ─── (post-first) download path, which is what 99% of CI runs hit. ───
+      # ── actions/checkout@v4 × 3 ──
+      - name: mark ac1 start
+        run: date +%s%N > /tmp/bench/ac1_start
 
-      - name: actions/checkout@v4 (run 1, cold cache)
-        id: ac1
+      - name: actions/checkout@v4 (run 1)
         uses: actions/checkout@v4
 
-      - name: actions/checkout@v4 (run 2, warm)
-        id: ac2
+      - name: mark ac1 end
+        run: date +%s%N > /tmp/bench/ac1_end
+
+      - name: mark ac2 start
+        run: date +%s%N > /tmp/bench/ac2_start
+
+      - name: actions/checkout@v4 (run 2)
         uses: actions/checkout@v4
 
-      - name: actions/checkout@v4 (run 3, warm)
-        id: ac3
+      - name: mark ac2 end
+        run: date +%s%N > /tmp/bench/ac2_end
+
+      - name: mark ac3 start
+        run: date +%s%N > /tmp/bench/ac3_start
+
+      - name: actions/checkout@v4 (run 3)
         uses: actions/checkout@v4
 
-      - name: x-cmd-action/checkout@v1 (run 1, cold cache)
-        id: xc1
+      - name: mark ac3 end
+        run: date +%s%N > /tmp/bench/ac3_end
+
+      # ── x-cmd-action/checkout@v1 × 3 ──
+      - name: mark xc1 start
+        run: date +%s%N > /tmp/bench/xc1_start
+
+      - name: x-cmd-action/checkout@v1 (run 1)
         uses: x-cmd-action/checkout@v1
 
-      - name: x-cmd-action/checkout@v1 (run 2, warm)
-        id: xc2
+      - name: mark xc1 end
+        run: date +%s%N > /tmp/bench/xc1_end
+
+      - name: mark xc2 start
+        run: date +%s%N > /tmp/bench/xc2_start
+
+      - name: x-cmd-action/checkout@v1 (run 2)
         uses: x-cmd-action/checkout@v1
 
-      - name: x-cmd-action/checkout@v1 (run 3, warm)
-        id: xc3
+      - name: mark xc2 end
+        run: date +%s%N > /tmp/bench/xc2_end
+
+      - name: mark xc3 start
+        run: date +%s%N > /tmp/bench/xc3_start
+
+      - name: x-cmd-action/checkout@v1 (run 3)
         uses: x-cmd-action/checkout@v1
 
-      - name: read step durations from timing API
-        if: always()
-        run: |
-          curl -fsSL -H "Authorization: token ${{ github.token }}" \
-              "${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/timing" \
-              > /tmp/bench-results/timing.json 2>/dev/null || echo "{}" > /tmp/bench-results/timing.json
+      - name: mark xc3 end
+        run: date +%s%N > /tmp/bench/xc3_end
 
-          # timing API returns run-level timing; per-step durations come from
-          # jobs API. Get those instead.
-          curl -fsSL -H "Authorization: token ${{ github.token }}" \
-              "${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-              > /tmp/bench-results/run.json 2>/dev/null || echo "{}" > /tmp/bench-results/run.json
-
-          AC1_MS=$(jq -r '.jobs[0].steps[] | select(.name=="actions/checkout@v4 (run 1, cold cache)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
-          AC2_MS=$(jq -r '.jobs[0].steps[] | select(.name=="actions/checkout@v4 (run 2, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
-          AC3_MS=$(jq -r '.jobs[0].steps[] | select(.name=="actions/checkout@v4 (run 3, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
-          XC1_MS=$(jq -r '.jobs[0].steps[] | select(.name=="x-cmd-action/checkout@v1 (run 1, cold cache)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
-          XC2_MS=$(jq -r '.jobs[0].steps[] | select(.name=="x-cmd-action/checkout@v1 (run 2, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
-          XC3_MS=$(jq -r '.jobs[0].steps[] | select(.name=="x-cmd-action/checkout@v1 (run 3, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
-
-          echo "Step durations (ms):"
-          echo "  actions/checkout@v4:        $AC1_MS  $AC2_MS  $AC3_MS"
-          echo "  x-cmd-action/checkout@v1:   $XC1_MS  $XC2_MS  $XC3_MS"
-          echo ""
-
-          echo "$AC1_MS" > /tmp/bench-results/ac1
-          echo "$AC2_MS" > /tmp/bench-results/ac2
-          echo "$AC3_MS" > /tmp/bench-results/ac3
-          echo "$XC1_MS" > /tmp/bench-results/xc1
-          echo "$XC2_MS" > /tmp/bench-results/xc2
-          echo "$XC3_MS" > /tmp/bench-results/xc3
-
+      # ── compute and report ──
       - name: summary
         if: always()
         run: |
-          AC1=$(cat /tmp/bench-results/ac1 2>/dev/null)
-          AC2=$(cat /tmp/bench-results/ac2 2>/dev/null)
-          AC3=$(cat /tmp/bench-results/ac3 2>/dev/null)
-          XC1=$(cat /tmp/bench-results/xc1 2>/dev/null)
-          XC2=$(cat /tmp/bench-results/xc2 2>/dev/null)
-          XC3=$(cat /tmp/bench-results/xc3 2>/dev/null)
+          ns_to_ms() { awk "BEGIN {printf \"%.0f\", (\$2 - \$1) / 1000000}"; }
+
+          AC1_MS=$(ns_to_ms $(cat /tmp/bench/ac1_start) $(cat /tmp/bench/ac1_end))
+          AC2_MS=$(ns_to_ms $(cat /tmp/bench/ac2_start) $(cat /tmp/bench/ac2_end))
+          AC3_MS=$(ns_to_ms $(cat /tmp/bench/ac3_start) $(cat /tmp/bench/ac3_end))
+          XC1_MS=$(ns_to_ms $(cat /tmp/bench/xc1_start) $(cat /tmp/bench/xc1_end))
+          XC2_MS=$(ns_to_ms $(cat /tmp/bench/xc2_start) $(cat /tmp/bench/xc2_end))
+          XC3_MS=$(ns_to_ms $(cat /tmp/bench/xc3_start) $(cat /tmp/bench/xc3_end))
+
+          # Warm best = min(warm runs); cold = 1st
+          AC_WARM_MS=$(awk "BEGIN {v = $AC2_MS; if ($AC3_MS < v) v = $AC3_MS; print v}")
+          XC_WARM_MS=$(awk "BEGIN {v = $XC2_MS; if ($XC3_MS < v) v = $XC3_MS; print v}")
 
           echo ""
           echo "=== Step duration (ms) ==="
           echo ""
-          printf "%-32s %10s %10s %10s\n" "" "cold" "warm-1" "warm-2"
-          printf "%-32s %10s %10s %10s\n" "actions/checkout@v4" "$AC1" "$AC2" "$AC3"
-          printf "%-32s %10s %10s %10s\n" "x-cmd-action/checkout@v1" "$XC1" "$XC2" "$XC3"
+          printf "%-35s %12s %12s %12s\n" "" "cold (1st)" "warm (2nd)" "warm (3rd)"
+          printf "%-35s %12s %12s %12s\n" "actions/checkout@v4" "$AC1_MS" "$AC2_MS" "$AC3_MS"
+          printf "%-35s %12s %12s %12s\n" "x-cmd-action/checkout@v1" "$XC1_MS" "$XC2_MS" "$XC3_MS"
           echo ""
 
-          # Best-of-warm comparison (use awk to handle possibly-empty values)
-          if [ -n "$AC2" ] && [ -n "$XC2" ]; then
-            AC_BEST=$(awk "BEGIN {v = $AC2; if ($AC3 < v) v = $AC3; print v}")
-            XC_BEST=$(awk "BEGIN {v = $XC2; if ($XC3 < v) v = $XC3; print v}")
-            echo "Best warm run: actions/checkout=$AC_BEST ms, x-cmd-action/checkout=$XC_BEST ms"
-            if [ "$XC_BEST" != "0" ] && [ "$XC_BEST" != "" ]; then
-              RATIO=$(awk "BEGIN {printf \"%.2f\", $AC_BEST / $XC_BEST}")
-              echo "Ratio: actions/checkout took ${RATIO}x longer"
-            fi
+          echo "Best warm run (excludes cold tarball download):"
+          printf "  actions/checkout@v4:        %s ms\n" "$AC_WARM_MS"
+          printf "  x-cmd-action/checkout@v1:   %s ms\n" "$XC_WARM_MS"
+          if [ "$XC_WARM_MS" -gt 0 ]; then
+            RATIO=$(awk "BEGIN {printf \"%.2f\", $AC_WARM_MS / $XC_WARM_MS}")
+            echo "  Ratio: actions/checkout took ${RATIO}x longer"
           fi
+
           echo ""
           echo "Notes:"
-          echo "  - 'cold' = first call, action tarball must be downloaded"
-          echo "  - 'warm' = subsequent calls in same job, tarball already cached"
-          echo "  - All steps clone the same x-cmd-action/checkout repo with"
-          echo "    depth=1 (default). Real CI on repeat jobs hits the warm path."
+          echo "  - 'cold' = first call in this job; tarball is downloaded from scratch."
+          echo "  - 'warm' = subsequent calls; tarball already cached."
+          echo "  - All steps clone the same x-cmd-action/checkout repo (depth=1)."
+          echo "  - Real CI on a typical job hits 1 cold + 0-N warm; ratio depends on"
+          echo "    job size but warm ratio is the more representative number."
