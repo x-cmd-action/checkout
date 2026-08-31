@@ -1,0 +1,72 @@
+name: benchmark-vs-actions-checkout
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - name: write results
+        run: |
+          mkdir -p bench-results
+          echo "Benchmark: actions/checkout@v4 vs x-cmd-action/checkout@v1"
+          echo "Repo: x-cmd-action/checkout (this repo, ~ small shell action)"
+          echo "Runner: ubuntu-latest (GitHub-hosted, fresh VM per run)"
+          echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+
+      - name: bench actions/checkout@v4
+        id: bench_actions
+        uses: actions/checkout@v4
+
+      - name: measure actions/checkout wall time + tarball
+        run: |
+          # Disk usage of the action's unpacked tree
+          ACTIONS_SIZE=$(du -sb /home/runner/work/_actions/actions 2>/dev/null | awk '{print $1}')
+          ACTIONS_COUNT=$(find /home/runner/work/_actions/actions -name 'action.yml' 2>/dev/null | wc -l)
+          echo "actions/checkout disk (unpacked under _actions/actions): $ACTIONS_SIZE bytes"
+          echo "actions files count: $ACTIONS_COUNT"
+          echo "actions/checkout wall-clock (this step): see step timing"
+          echo "$ACTIONS_SIZE" > bench-results/actions_bytes
+        working-directory: ${{ github.workspace }}
+
+      - name: remove clone to clear state
+        run: rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* 2>/dev/null || true
+
+      - name: bench x-cmd-action/checkout@v1
+        id: bench_xcmd
+        uses: x-cmd-action/checkout@v1
+
+      - name: measure x-cmd-action/checkout wall time + tarball
+        run: |
+          XCMD_SIZE=$(du -sb /home/runner/work/_actions/x-cmd-action 2>/dev/null | awk '{print $1}')
+          XCMD_COUNT=$(find /home/runner/work/_actions/x-cmd-action -name 'action.yml' 2>/dev/null | wc -l)
+          echo "x-cmd-action/checkout disk: $XCMD_SIZE bytes"
+          echo "x-cmd-action files count: $XCMD_COUNT"
+          echo "$XCMD_SIZE" > bench-results/xcmd_bytes
+        working-directory: ${{ github.workspace }}
+
+      - name: download sizes (tarball over the wire)
+        run: |
+          ACTIONS_TARBALL=$(gh api repos/actions/checkout/releases/latest --jq '.tag_name' >/dev/null 2>&1; curl -fsSLI "https://api.github.com/repos/actions/checkout/tarball/v4" 2>&1 | grep -i content-length | head -1 || true)
+          XCMD_TARBALL=$(curl -fsSLI "https://api.github.com/repos/x-cmd-action/checkout/tarball/v1" 2>&1 | grep -i content-length | head -1 || true)
+          echo "actions/checkout tarball header: $ACTIONS_TARBALL"
+          echo "x-cmd-action/checkout tarball header: $XCMD_TARBALL"
+
+      - name: summary
+        run: |
+          ACTIONS_BYTES=$(cat bench-results/actions_bytes 2>/dev/null || echo "?")
+          XCMD_BYTES=$(cat bench-results/xcmd_bytes 2>/dev/null || echo "?")
+          echo ""
+          echo "=== Summary ==="
+          echo "actions/checkout@v4 unpacked: $ACTIONS_BYTES bytes"
+          echo "x-cmd-action/checkout@v1 unpacked: $XCMD_BYTES bytes"
+          if [ "$ACTIONS_BYTES" != "?" ] && [ "$XCMD_BYTES" != "?" ]; then
+            RATIO=$(awk "BEGIN {printf \"%.1fx\", $ACTIONS_BYTES / $XCMD_BYTES}")
+            echo "Ratio: actions/checkout is $RATIO the size of x-cmd-action/checkout"
+          fi
+          echo ""
+          echo "Note: GitHub Actions runtime download overhead is ~few seconds either way"
+          echo "(Network download, not action logic). Use this benchmark for size comparison,"
+          echo "not for end-to-end CI speed."
+        working-directory: ${{ github.workspace }}
