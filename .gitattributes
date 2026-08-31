@@ -1,9 +1,7 @@
-# Exclude CI-only files and the Chinese README from the git archive that
-# GitHub Actions downloads when a user references `uses: x-cmd-action/<repo>@v1`.
-# User-facing README.md stays so the action remains usable when downloaded
-# standalone (e.g., for debug via `git archive` of this repo). LICENSE is
-# excluded too — Apache 2.0 doesn't require the license file to ship in
-# every distribution; it lives at the canonical GitHub repo URL.
-.github/workflows/*    export-ignore
-README.cn.md           export-ignore
-LICENSE                export-ignore
+# Strip the action tarball to only what GitHub Actions actually runs:
+# action.yml (the manifest) and lib/ (the implementation). Everything
+# else — CI workflows, READMEs, LICENSE — is excluded from the git archive
+# that GitHub downloads when a user references `uses: x-cmd-action/<repo>@v1`.
+#
+# README.md and LICENSE still live in the GitHub repo at
+# github.com/x-cmd-action/<repo>; they're just not shipped in the tarball.
