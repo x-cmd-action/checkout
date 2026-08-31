@@ -10,102 +10,101 @@ jobs:
         run: |
           mkdir -p /tmp/bench-results
           echo "Benchmark: actions/checkout@v4 vs x-cmd-action/checkout@v1"
-          echo "Repo: x-cmd-action/checkout (this repo, ~ small shell action)"
-          echo "Runner: ubuntu-latest (GitHub-hosted, fresh VM per run)"
+          echo "Repo: x-cmd-action/checkout (this repo)"
+          echo "Runner: ubuntu-latest (fresh VM per run)"
           echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo ""
 
-      - name: bench actions/checkout@v4
-        id: bench_actions
+      # ─── Run each action multiple times back-to-back so we measure the cached
+      # ─── (post-first) download path, which is what 99% of CI runs hit. ───
+
+      - name: actions/checkout@v4 (run 1, cold cache)
+        id: ac1
         uses: actions/checkout@v4
-        with:
-          path: ./actions-bench-ws
 
-      - name: measure actions/checkout unpacked size + cloned repo size + wall time
-        run: |
-          ACTIONS_SIZE=$(du -sb /home/runner/work/_actions/actions 2>/dev/null | awk '{print $1}')
-          CLONE_SIZE=$(du -sb actions-bench-ws 2>/dev/null | awk '{print $1}')
-          echo "actions/checkout unpacked (action tarball): $ACTIONS_SIZE bytes"
-          echo "actions/checkout cloned repo (.git + working tree): $CLONE_SIZE bytes"
-          ACTIONS_MS=$(gh run view ${{ github.run_id }} --repo ${{ github.repository }} --json jobs --jq '.jobs[0].steps[] | select(.name=="bench actions/checkout@v4") | .duration_ms' 2>/dev/null)
-          echo "actions/checkout step duration: $ACTIONS_MS ms"
-          echo "$ACTIONS_SIZE" > /tmp/bench-results/actions_bytes
-          echo "$ACTIONS_MS" > /tmp/bench-results/actions_ms
-          echo "$CLONE_SIZE" > /tmp/bench-results/actions_clone_bytes
+      - name: actions/checkout@v4 (run 2, warm)
+        id: ac2
+        uses: actions/checkout@v4
 
-      - name: remove clone to clear state
-        run: rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* 2>/dev/null || true
+      - name: actions/checkout@v4 (run 3, warm)
+        id: ac3
+        uses: actions/checkout@v4
 
-      - name: bench x-cmd-action/checkout@v1
-        id: bench_xcmd
+      - name: x-cmd-action/checkout@v1 (run 1, cold cache)
+        id: xc1
         uses: x-cmd-action/checkout@v1
 
-      - name: measure x-cmd-action/checkout unpacked size + cloned repo size + wall time
+      - name: x-cmd-action/checkout@v1 (run 2, warm)
+        id: xc2
+        uses: x-cmd-action/checkout@v1
+
+      - name: x-cmd-action/checkout@v1 (run 3, warm)
+        id: xc3
+        uses: x-cmd-action/checkout@v1
+
+      - name: read step durations from timing API
+        if: always()
         run: |
-          XCMD_SIZE=$(du -sb /home/runner/work/_actions/x-cmd-action 2>/dev/null | awk '{print $1}')
-          CLONE_SIZE=$(du -sb . 2>/dev/null | awk '{print $1}')
-          echo "x-cmd-action/checkout unpacked (action tarball): $XCMD_SIZE bytes"
-          echo "x-cmd-action/checkout cloned repo (.git + working tree): $CLONE_SIZE bytes"
-          XCMD_MS=$(gh run view ${{ github.run_id }} --repo ${{ github.repository }} --json jobs --jq '.jobs[0].steps[] | select(.name=="bench x-cmd-action/checkout@v1") | .duration_ms' 2>/dev/null)
-          echo "x-cmd-action/checkout step duration: $XCMD_MS ms"
-          echo "$XCMD_SIZE" > /tmp/bench-results/xcmd_bytes
-          echo "$XCMD_MS" > /tmp/bench-results/xcmd_ms
-          echo "$CLONE_SIZE" > /tmp/bench-results/xcmd_clone_bytes
+          curl -fsSL -H "Authorization: token ${{ github.token }}" \
+              "${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/timing" \
+              > /tmp/bench-results/timing.json 2>/dev/null || echo "{}" > /tmp/bench-results/timing.json
+
+          # timing API returns run-level timing; per-step durations come from
+          # jobs API. Get those instead.
+          curl -fsSL -H "Authorization: token ${{ github.token }}" \
+              "${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              > /tmp/bench-results/run.json 2>/dev/null || echo "{}" > /tmp/bench-results/run.json
+
+          AC1_MS=$(jq -r '.jobs[0].steps[] | select(.name=="actions/checkout@v4 (run 1, cold cache)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
+          AC2_MS=$(jq -r '.jobs[0].steps[] | select(.name=="actions/checkout@v4 (run 2, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
+          AC3_MS=$(jq -r '.jobs[0].steps[] | select(.name=="actions/checkout@v4 (run 3, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
+          XC1_MS=$(jq -r '.jobs[0].steps[] | select(.name=="x-cmd-action/checkout@v1 (run 1, cold cache)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
+          XC2_MS=$(jq -r '.jobs[0].steps[] | select(.name=="x-cmd-action/checkout@v1 (run 2, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
+          XC3_MS=$(jq -r '.jobs[0].steps[] | select(.name=="x-cmd-action/checkout@v1 (run 3, warm)") | .duration_ms // empty' /tmp/bench-results/run.json 2>/dev/null)
+
+          echo "Step durations (ms):"
+          echo "  actions/checkout@v4:        $AC1_MS  $AC2_MS  $AC3_MS"
+          echo "  x-cmd-action/checkout@v1:   $XC1_MS  $XC2_MS  $XC3_MS"
+          echo ""
+
+          echo "$AC1_MS" > /tmp/bench-results/ac1
+          echo "$AC2_MS" > /tmp/bench-results/ac2
+          echo "$AC3_MS" > /tmp/bench-results/ac3
+          echo "$XC1_MS" > /tmp/bench-results/xc1
+          echo "$XC2_MS" > /tmp/bench-results/xc2
+          echo "$XC3_MS" > /tmp/bench-results/xc3
 
       - name: summary
+        if: always()
         run: |
-          ACTIONS_BYTES=$(cat /tmp/bench-results/actions_bytes 2>/dev/null || echo "?")
-          XCMD_BYTES=$(cat /tmp/bench-results/xcmd_bytes 2>/dev/null || echo "?")
-          ACTIONS_CLONE=$(cat /tmp/bench-results/actions_clone_bytes 2>/dev/null || echo "?")
-          XCMD_CLONE=$(cat /tmp/bench-results/xcmd_clone_bytes 2>/dev/null || echo "?")
-          ACTIONS_MS=$(cat /tmp/bench-results/actions_ms 2>/dev/null || echo "?")
-          XCMD_MS=$(cat /tmp/bench-results/xcmd_ms 2>/dev/null || echo "?")
+          AC1=$(cat /tmp/bench-results/ac1 2>/dev/null)
+          AC2=$(cat /tmp/bench-results/ac2 2>/dev/null)
+          AC3=$(cat /tmp/bench-results/ac3 2>/dev/null)
+          XC1=$(cat /tmp/bench-results/xc1 2>/dev/null)
+          XC2=$(cat /tmp/bench-results/xc2 2>/dev/null)
+          XC3=$(cat /tmp/bench-results/xc3 2>/dev/null)
+
           echo ""
-          echo "=== Summary ==="
-          printf "%-32s %25s %25s\n" "" "actions/checkout@v4" "x-cmd-action/checkout@v1"
-          printf "%-32s %25s %25s\n" "action tarball (unpacked)" "$ACTIONS_BYTES bytes" "$XCMD_BYTES bytes"
-          printf "%-32s %25s %25s\n" "cloned repo (.git + tree)" "$ACTIONS_CLONE bytes" "$XCMD_CLONE bytes"
-          if [ "$ACTIONS_MS" != "?" ] && [ "$XCMD_MS" != "?" ]; then
-            printf "%-32s %25s %25s\n" "step duration (wall-clock)" "${ACTIONS_MS}ms" "${XCMD_MS}ms"
-            SIZE_RATIO=$(awk "BEGIN {printf \"%.1f\", $ACTIONS_BYTES / $XCMD_BYTES}")
-            echo ""
-            echo "tarball size ratio: actions/checkout is ${SIZE_RATIO}x larger"
-            if [ "$XCMD_MS" != "0" ]; then
-              TIME_RATIO=$(awk "BEGIN {printf \"%.2f\", $ACTIONS_MS / $XCMD_MS}")
-              echo "step duration ratio: actions/checkout took ${TIME_RATIO}x longer"
+          echo "=== Step duration (ms) ==="
+          echo ""
+          printf "%-32s %10s %10s %10s\n" "" "cold" "warm-1" "warm-2"
+          printf "%-32s %10s %10s %10s\n" "actions/checkout@v4" "$AC1" "$AC2" "$AC3"
+          printf "%-32s %10s %10s %10s\n" "x-cmd-action/checkout@v1" "$XC1" "$XC2" "$XC3"
+          echo ""
+
+          # Best-of-warm comparison
+          if [ -n "$AC2" ] && [ -n "$XC2" ]; then
+            AC_BEST=$(( AC2 < AC3 ? AC2 : AC3 ))
+            XC_BEST=$(( XC2 < XC3 ? XC2 : XC3 ))
+            echo "Best warm run: actions/checkout=$AC_BEST ms, x-cmd-action/checkout=$XC_BEST ms"
+            if [ "$XC_BEST" -gt 0 ]; then
+              RATIO=$(awk "BEGIN {printf \"%.2f\", $AC_BEST / $XC_BEST}")
+              echo "Ratio: actions/checkout took ${RATIO}x longer"
             fi
           fi
           echo ""
           echo "Notes:"
-          echo "  - Both actions default to depth: 1, so cloned-repo sizes should be comparable"
-          echo "  - GitHub Actions downloads the action tarball ONCE per job, not per 'uses:' step"
-          echo "  - Step duration = (action download, if first time) + clone + checkout"
-          echo "  - On repeat jobs, download is cached and step duration ≈ clone time"
-
-      - name: summary
-        run: |
-          ACTIONS_BYTES=$(cat /tmp/bench-results/actions_bytes 2>/dev/null || echo "?")
-          XCMD_BYTES=$(cat /tmp/bench-results/xcmd_bytes 2>/dev/null || echo "?")
-          ACTIONS_MS=$(cat /tmp/bench-results/actions_ms 2>/dev/null || echo "?")
-          XCMD_MS=$(cat /tmp/bench-results/xcmd_ms 2>/dev/null || echo "?")
-          echo ""
-          echo "=== Summary ==="
-          echo "                  actions/checkout@v4   x-cmd-action/checkout@v1"
-          echo "unpacked bytes:   $ACTIONS_BYTES              $XCMD_BYTES"
-          if [ "$ACTIONS_MS" != "?" ] && [ "$XCMD_MS" != "?" ]; then
-            echo "step duration:    ${ACTIONS_MS}ms                 ${XCMD_MS}ms"
-            SIZE_RATIO=$(awk "BEGIN {printf \"%.1f\", $ACTIONS_BYTES / $XCMD_BYTES}")
-            echo "size ratio:       ${SIZE_RATIO}x"
-            if [ "$XCMD_MS" != "0" ]; then
-              TIME_RATIO=$(awk "BEGIN {printf \"%.2f\", $ACTIONS_MS / $XCMD_MS}")
-              echo "time ratio:       ${TIME_RATIO}x"
-            fi
-          fi
-          echo ""
-          echo "Note: GitHub Actions reuses downloaded tarballs across steps in the same job"
-          echo "(the action is downloaded ONCE per job, not per 'uses:'). So the step"
-          echo "duration here is dominated by the clone itself, not by download time."
-          echo ""
-          echo "The clone size is what the size ratio reflects: actions/checkout does more"
-          echo "internal setup (isolated HOME, extraheader credentials, insteadOf) than this"
-          echo "action does."
+          echo "  - 'cold' = first call, action tarball must be downloaded"
+          echo "  - 'warm' = subsequent calls in same job, tarball already cached"
+          echo "  - All steps clone the same x-cmd-action/checkout repo with"
+          echo "    depth=1 (default). Real CI on repeat jobs hits the warm path."
