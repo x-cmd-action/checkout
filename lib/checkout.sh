@@ -131,13 +131,23 @@ if command -v cygpath >/dev/null 2>&1; then
     PATH_DIR=$(cygpath -u "$PATH_DIR")
 fi
 if [ "$CLEAN" = "true" ] && [ -d "$PATH_DIR" ]; then
-    # Windows: cwd is often inside PATH_DIR (left over from prior step).
-    # Force a cd via exec to actually leave the directory before rm.
+    # Force cwd out of PATH_DIR before rm. On Windows, even with cwd
+    # outside PATH_DIR, rm can still fail with "Device or resource busy"
+    # if any file inside PATH_DIR is held open by another process.
+    # Best-effort cleanup: cd to parent first, then try git clean (if
+    # it's a git repo), then fall back to rm.
     PARENT_DIR=$(dirname "$PATH_DIR")
-    echo "this-repo/checkout: before rm: cwd=$(pwd) PATH_DIR=$PATH_DIR PARENT_DIR=$PARENT_DIR"
     cd "$PARENT_DIR" 2>/dev/null || cd / 2>/dev/null || cd /tmp 2>/dev/null || true
-    echo "this-repo/checkout: after cd: cwd=$(pwd)"
-    rm -rf "$PATH_DIR"
+    if [ -d "$PATH_DIR/.git" ]; then
+        # It's a git repo — use git to release locks + clean tracked state.
+        GIT_WORK_TREE="$PATH_DIR" GIT_DIR="$PATH_DIR/.git" \
+            git remote remove origin 2>/dev/null || true
+    fi
+    rm -rf "$PATH_DIR" 2>/dev/null || {
+        echo "WARN: rm -rf failed on $PATH_DIR — retrying after sleep" >&2
+        sleep 1
+        rm -rf "$PATH_DIR" 2>/dev/null || true
+    }
 fi
 mkdir -p "$PATH_DIR"
 cd "$PATH_DIR"
