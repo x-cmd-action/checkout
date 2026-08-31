@@ -131,7 +131,12 @@ if command -v cygpath >/dev/null 2>&1; then
     PATH_DIR=$(cygpath -u "$PATH_DIR")
 fi
 if [ "$CLEAN" = "true" ] && [ -d "$PATH_DIR" ]; then
-    cd "$HOME" 2>/dev/null || cd / 2>/dev/null || cd /tmp 2>/dev/null || true
+    # Force cwd out of PATH_DIR before rm. On Windows the runner's
+    # cwd is often inside PATH_DIR and rm of cwd fails. cd to the
+    # parent of PATH_DIR instead of $HOME so we don't accidentally
+    # land back in PATH_DIR via the HOME env var.
+    PARENT_DIR=$(dirname "$PATH_DIR")
+    cd "$PARENT_DIR" 2>/dev/null || cd / 2>/dev/null || cd /tmp 2>/dev/null || true
     rm -rf "$PATH_DIR"
 fi
 mkdir -p "$PATH_DIR"
