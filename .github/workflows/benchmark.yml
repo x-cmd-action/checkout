@@ -92,12 +92,12 @@ jobs:
           printf "%-32s %10s %10s %10s\n" "x-cmd-action/checkout@v1" "$XC1" "$XC2" "$XC3"
           echo ""
 
-          # Best-of-warm comparison
+          # Best-of-warm comparison (use awk to handle possibly-empty values)
           if [ -n "$AC2" ] && [ -n "$XC2" ]; then
-            AC_BEST=$(( AC2 < AC3 ? AC2 : AC3 ))
-            XC_BEST=$(( XC2 < XC3 ? XC2 : XC3 ))
+            AC_BEST=$(awk "BEGIN {v = $AC2; if ($AC3 < v) v = $AC3; print v}")
+            XC_BEST=$(awk "BEGIN {v = $XC2; if ($XC3 < v) v = $XC3; print v}")
             echo "Best warm run: actions/checkout=$AC_BEST ms, x-cmd-action/checkout=$XC_BEST ms"
-            if [ "$XC_BEST" -gt 0 ]; then
+            if [ "$XC_BEST" != "0" ] && [ "$XC_BEST" != "" ]; then
               RATIO=$(awk "BEGIN {printf \"%.2f\", $AC_BEST / $XC_BEST}")
               echo "Ratio: actions/checkout took ${RATIO}x longer"
             fi
