@@ -220,7 +220,7 @@ All inputs below mirror `actions/checkout@v4` unless otherwise noted.
 | --- | --- | --- |
 | Runtime | bash + Node.js | bash only |
 | Tarball size (unpacked) | ~1.85 MB JS bundle | **~16 KB** shell (**~114x smaller**) — only `action.yml` + `lib/checkout.sh` ship in the tarball (CI workflows / READMEs / LICENSE excluded via `.gitattributes` `export-ignore`) |
-| Wall-clock step duration (warm, depth: 1) | ~565–714 ms | ~326–546 ms (~1.7x faster; measured by [`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml)) |
+| Wall-clock step duration (warm, depth: 1) | 529–675 ms | 261–524 ms (~1.3–2.0x faster after baseline-subtraction; measured by [`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml)) |
 | Cold-start (job init + tarball download + 1st step) | see [`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml) | see benchmark |
 | Inputs | 22 | 22 (same names) + 3 x-cmd enhancements |
 | LFS / submodules / sparse / filter | ✅ | ✅ |
