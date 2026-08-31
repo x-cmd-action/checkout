@@ -271,32 +271,48 @@ jobs:
 
       - name: close resolved multi-platform issues
         if: steps.decide.outputs.all_pass == 'true'
-        uses: peter-evans/close-issue@v3
-        with:
-          comment: |
-            Multi-platform test passed on all platforms.
-            Auto-closing this issue.
-          issue-pattern: "Multi-platform test"
-          labels: "multi-platform"
-          states: open
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # Find open issues whose title starts with "Multi-platform test"
+          # and close them with a comment.
+          ISSUES=$(gh issue list --state open --label multi-platform \
+                     --search "Multi-platform test in:title" \
+                     --json number,title --jq '.[] | "\(.number)|\(.title)"')
+          if [ -n "$ISSUES" ]; then
+            echo "$ISSUES" | while IFS='|' read -r num title; do
+              echo "Closing #$num: $title"
+              gh issue close "$num" --comment "Multi-platform test passed on all platforms.
 
-      - name: open / comment issue on failure
+          - ubuntu: success
+          - windows: success
+          - macos: success
+
+          Auto-closing."
+            done
+          else
+            echo "No open multi-platform issues to close"
+          fi
+
+      - name: open issue on failure
         if: steps.decide.outputs.all_pass == 'false'
-        uses: peter-evans/create-issue@v4
-        with:
-          title: "Multi-platform test failed"
-          body: |
-            Multi-platform CI run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) failed.
-
-            | platform | result |
-            |---|---|
-            | ubuntu-latest | ${{ needs.test-ubuntu.result }} |
-            | windows-latest | ${{ needs.test-windows.result }} |
-            | macos-latest | ${{ needs.test-macos.result }} |
-
-            Triggered by: ${{ github.event_name }} (${{ github.ref }}).
-          labels: "multi-platform"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          BODY=$(cat <<EOF
+          Multi-platform CI run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) failed.
+
+          | platform | result |
+          |---|---|
+          | ubuntu-latest | ${{ needs.test-ubuntu.result }} |
+          | windows-latest | ${{ needs.test-windows.result }} |
+          | macos-latest | ${{ needs.test-macos.result }} |
+
+          Triggered by: ${{ github.event_name }} (${{ github.ref }}).
+          EOF
+          )
+          gh issue create --title "Multi-platform test failed" \
+                          --body "$BODY" \
+                          --label "multi-platform"
