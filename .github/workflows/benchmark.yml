@@ -69,14 +69,28 @@ jobs:
       - name: summary
         if: always()
         run: |
-          ns_to_ms() { awk "BEGIN {printf \"%.0f\", (\$2 - \$1) / 1000000}"; }
+          echo "marker files:"
+          for f in /tmp/bench/*; do
+            echo "  $f: $(cat "$f")"
+          done
 
-          AC1_MS=$(ns_to_ms $(cat /tmp/bench/ac1_start) $(cat /tmp/bench/ac1_end))
-          AC2_MS=$(ns_to_ms $(cat /tmp/bench/ac2_start) $(cat /tmp/bench/ac2_end))
-          AC3_MS=$(ns_to_ms $(cat /tmp/bench/ac3_start) $(cat /tmp/bench/ac3_end))
-          XC1_MS=$(ns_to_ms $(cat /tmp/bench/xc1_start) $(cat /tmp/bench/xc1_end))
-          XC2_MS=$(ns_to_ms $(cat /tmp/bench/xc2_start) $(cat /tmp/bench/xc2_end))
-          XC3_MS=$(ns_to_ms $(cat /tmp/bench/xc3_start) $(cat /tmp/bench/xc3_end))
+          # Use awk directly on the file contents to avoid shell quoting issues
+          ns_to_ms() {
+            local start_ns end_ns
+            start_ns=$(cat "$1")
+            end_ns=$(cat "$2")
+            awk -v s="$start_ns" -v e="$end_ns" 'BEGIN { printf "%.0f", (e - s) / 1000000 }'
+          }
+
+          AC1_MS=$(ns_to_ms /tmp/bench/ac1_start /tmp/bench/ac1_end)
+          AC2_MS=$(ns_to_ms /tmp/bench/ac2_start /tmp/bench/ac2_end)
+          AC3_MS=$(ns_to_ms /tmp/bench/ac3_start /tmp/bench/ac3_end)
+          XC1_MS=$(ns_to_ms /tmp/bench/xc1_start /tmp/bench/xc1_end)
+          XC2_MS=$(ns_to_ms /tmp/bench/xc2_start /tmp/bench/xc2_end)
+          XC3_MS=$(ns_to_ms /tmp/bench/xc3_start /tmp/bench/xc3_end)
+
+          echo ""
+          echo "Parsed values: AC1=$AC1_MS AC2=$AC2_MS AC3=$AC3_MS XC1=$XC1_MS XC2=$XC2_MS XC3=$XC3_MS"
 
           # Warm best = min(warm runs); cold = 1st
           AC_WARM_MS=$(awk "BEGIN {v = $AC2_MS; if ($AC3_MS < v) v = $AC3_MS; print v}")
