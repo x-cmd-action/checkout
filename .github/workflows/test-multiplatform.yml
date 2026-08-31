@@ -1,0 +1,291 @@
+name: test-multiplatform
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Daily at 06:00 UTC.
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  test-ubuntu:
+    name: "ubuntu-latest"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: baseline no-op
+        shell: bash
+        run: |
+          date +%s%N > /tmp/bench_base_start
+          echo "baseline"
+          date +%s%N > /tmp/bench_base_end
+
+      - name: bench cold (start)
+        shell: bash
+        run: date +%s%N > /tmp/bench_cold_start
+
+      - name: clone via checkout (cold)
+        uses: x-cmd-action/checkout@v1
+
+      - name: bench cold (end)
+        shell: bash
+        run: date +%s%N > /tmp/bench_cold_end
+
+      - name: bench warm (start)
+        shell: bash
+        run: date +%s%N > /tmp/bench_warm_start
+
+      - name: clone via checkout (warm)
+        uses: x-cmd-action/checkout@v1
+
+      - name: bench warm (end)
+        shell: bash
+        run: date +%s%N > /tmp/bench_warm_end
+
+      - name: verify + report
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          test -d .git || { echo "FAIL: not a git repo"; exit 1; }
+          test "$(git config user.name)" = "github-actions[bot]" \
+              || { echo "FAIL: bot user.name not set"; exit 1; }
+          URL=$(git config remote.origin.url)
+          echo "$URL" | grep -qv "x-access-token" || { echo "FAIL: token in URL"; exit 1; }
+
+          # Compute durations
+          ns_to_ms() {
+            local s e
+            s=$(cat "$1"); e=$(cat "$2")
+            awk -v s="$s" -v e="$e" 'BEGIN {printf "%.0f", (e-s)/1000000}'
+          }
+          BASE_MS=$(ns_to_ms /tmp/bench_base_start /tmp/bench_base_end)
+          COLD_MS=$(ns_to_ms /tmp/bench_cold_start /tmp/bench_cold_end)
+          WARM_MS=$(ns_to_ms /tmp/bench_warm_start /tmp/bench_warm_end)
+          COLD_NET=$(( COLD_MS - BASE_MS )); [ $COLD_NET -lt 0 ] && COLD_NET=0
+          WARM_NET=$(( WARM_MS - BASE_MS )); [ $WARM_NET -lt 0 ] && WARM_NET=0
+
+          CLONE_BYTES=$(du -sb "$GITHUB_WORKSPACE" | awk '{print $1}')
+          BASH_VERSION_STR=$(bash --version | head -1)
+
+          {
+            echo "## ubuntu-latest"
+            echo ""
+            echo "| metric | value |"
+            echo "|---|---|"
+            echo "| result | PASS |"
+            echo "| baseline (no 'uses:') | ${BASE_MS} ms |"
+            echo "| step wall-clock (cold, gross) | ${COLD_MS} ms |"
+            echo "| step wall-clock (cold, net) | ${COLD_NET} ms |"
+            echo "| step wall-clock (warm, gross) | ${WARM_MS} ms |"
+            echo "| step wall-clock (warm, net) | ${WARM_NET} ms |"
+            echo "| cloned repo size | ${CLONE_BYTES} bytes |"
+            echo "| bash version | ${BASH_VERSION_STR} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "RESULT=PASS BASH=$BASH_VERSION_STR BASE_MS=$BASE_MS COLD_NET=$COLD_NET WARM_NET=$WARM_NET CLONE_BYTES=$CLONE_BYTES" >> "$GITHUB_OUTPUT"
+
+  test-windows:
+    name: "windows-latest"
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: baseline no-op
+        shell: bash
+        run: |
+          date +%s%N > /tmp/bench_base_start
+          echo "baseline"
+          date +%s%N > /tmp/bench_base_end
+
+      - name: bench cold (start)
+        shell: bash
+        run: date +%s%N > /tmp/bench_cold_start
+
+      - name: clone via checkout (cold)
+        uses: x-cmd-action/checkout@v1
+
+      - name: bench cold (end)
+        shell: bash
+        run: date +%s%N > /tmp/bench_cold_end
+
+      - name: bench warm (start)
+        shell: bash
+        run: date +%s%N > /tmp/bench_warm_start
+
+      - name: clone via checkout (warm)
+        uses: x-cmd-action/checkout@v1
+
+      - name: bench warm (end)
+        shell: bash
+        run: date +%s%N > /tmp/bench_warm_end
+
+      - name: verify + report (bash)
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE" || { echo "FAIL: cannot cd to workspace"; exit 1; }
+          test -d .git || { echo "FAIL: not a git repo"; exit 1; }
+          test "$(git config user.name)" = "github-actions[bot]" \
+              || { echo "FAIL: bot user.name not set"; exit 1; }
+          URL=$(git config remote.origin.url)
+          echo "$URL" | grep -qv "x-access-token" || { echo "FAIL: token in URL"; exit 1; }
+
+          ns_to_ms() {
+            local s e
+            s=$(cat "$1"); e=$(cat "$2")
+            awk -v s="$s" -v e="$e" 'BEGIN {printf "%.0f", (e-s)/1000000}'
+          }
+          BASE_MS=$(ns_to_ms /tmp/bench_base_start /tmp/bench_base_end)
+          COLD_MS=$(ns_to_ms /tmp/bench_cold_start /tmp/bench_cold_end)
+          WARM_MS=$(ns_to_ms /tmp/bench_warm_start /tmp/bench_warm_end)
+          COLD_NET=$(( COLD_MS - BASE_MS )); [ $COLD_NET -lt 0 ] && COLD_NET=0
+          WARM_NET=$(( WARM_MS - BASE_MS )); [ $WARM_NET -lt 0 ] && WARM_NET=0
+
+          CLONE_BYTES=$(du -sb "$GITHUB_WORKSPACE" | awk '{print $1}')
+          BASH_VERSION_STR=$(bash --version 2>&1 | head -1 || echo "bash unavailable")
+
+          {
+            echo "## windows-latest"
+            echo ""
+            echo "| metric | value |"
+            echo "|---|---|"
+            echo "| result | PASS |"
+            echo "| baseline (no 'uses:') | ${BASE_MS} ms |"
+            echo "| step wall-clock (cold, net) | ${COLD_NET} ms |"
+            echo "| step wall-clock (warm, net) | ${WARM_NET} ms |"
+            echo "| cloned repo size | ${CLONE_BYTES} bytes |"
+            echo "| bash version | ${BASH_VERSION_STR} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "RESULT=PASS BASH=$BASH_VERSION_STR BASE_MS=$BASE_MS COLD_NET=$COLD_NET WARM_NET=$WARM_NET CLONE_BYTES=$CLONE_BYTES" >> "$GITHUB_OUTPUT"
+
+  test-macos:
+    name: "macos-latest"
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: baseline no-op
+        shell: bash
+        run: |
+          date +%s%N > /tmp/bench_base_start
+          echo "baseline"
+          date +%s%N > /tmp/bench_base_end
+
+      - name: bench cold (start)
+        shell: bash
+        run: date +%s%N > /tmp/bench_cold_start
+
+      - name: clone via checkout (cold)
+        uses: x-cmd-action/checkout@v1
+
+      - name: bench cold (end)
+        shell: bash
+        run: date +%s%N > /tmp/bench_cold_end
+
+      - name: bench warm (start)
+        shell: bash
+        run: date +%s%N > /tmp/bench_warm_start
+
+      - name: clone via checkout (warm)
+        uses: x-cmd-action/checkout@v1
+
+      - name: bench warm (end)
+        shell: bash
+        run: date +%s%N > /tmp/bench_warm_end
+
+      - name: verify + report
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          test -d .git || { echo "FAIL: not a git repo"; exit 1; }
+          test "$(git config user.name)" = "github-actions[bot]" \
+              || { echo "FAIL: bot user.name not set"; exit 1; }
+          URL=$(git config remote.origin.url)
+          echo "$URL" | grep -qv "x-access-token" || { echo "FAIL: token in URL"; exit 1; }
+
+          ns_to_ms() {
+            local s e
+            s=$(cat "$1"); e=$(cat "$2")
+            awk -v s="$s" -v e="$e" 'BEGIN {printf "%.0f", (e-s)/1000000}'
+          }
+          BASE_MS=$(ns_to_ms /tmp/bench_base_start /tmp/bench_base_end)
+          COLD_MS=$(ns_to_ms /tmp/bench_cold_start /tmp/bench_cold_end)
+          WARM_MS=$(ns_to_ms /tmp/bench_warm_start /tmp/bench_warm_end)
+          COLD_NET=$(( COLD_MS - BASE_MS )); [ $COLD_NET -lt 0 ] && COLD_NET=0
+          WARM_NET=$(( WARM_MS - BASE_MS )); [ $WARM_NET -lt 0 ] && WARM_NET=0
+
+          CLONE_BYTES=$(du -sb "$GITHUB_WORKSPACE" | awk '{print $1}')
+          BASH_VERSION_STR=$(bash --version | head -1)
+
+          {
+            echo "## macos-latest"
+            echo ""
+            echo "| metric | value |"
+            echo "|---|---|"
+            echo "| result | PASS |"
+            echo "| baseline (no 'uses:') | ${BASE_MS} ms |"
+            echo "| step wall-clock (cold, net) | ${COLD_NET} ms |"
+            echo "| step wall-clock (warm, net) | ${WARM_NET} ms |"
+            echo "| cloned repo size | ${CLONE_BYTES} bytes |"
+            echo "| bash version | ${BASH_VERSION_STR} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "RESULT=PASS BASH=$BASH_VERSION_STR BASE_MS=$BASE_MS COLD_NET=$COLD_NET WARM_NET=$WARM_NET CLONE_BYTES=$CLONE_BYTES" >> "$GITHUB_OUTPUT"
+
+  report:
+    name: "report + auto-issue"
+    needs: [test-ubuntu, test-windows, test-macos]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: decide pass/fail
+        id: decide
+        run: |
+          UB="${{ needs.test-ubuntu.result }}"
+          WI="${{ needs.test-windows.result }}"
+          MA="${{ needs.test-macos.result }}"
+          echo "ubuntu=$UB windows=$WI macos=$MA"
+          if [ "$UB" = "success" ] && [ "$WI" = "success" ] && [ "$MA" = "success" ]; then
+            echo "all_pass=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "all_pass=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: close resolved multi-platform issues
+        if: steps.decide.outputs.all_pass == 'true'
+        uses: peter-evans/close-issue@v3
+        with:
+          comment: |
+            Multi-platform test passed on all platforms.
+            Auto-closing this issue.
+          issue-pattern: "Multi-platform test"
+          labels: "multi-platform"
+          states: open
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: open / comment issue on failure
+        if: steps.decide.outputs.all_pass == 'false'
+        uses: peter-evans/create-or-update-issue@v4
+        with:
+          title: "Multi-platform test failed"
+          body: |
+            Multi-platform CI run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) failed.
+
+            | platform | result |
+            |---|---|
+            | ubuntu-latest | ${{ needs.test-ubuntu.result }} |
+            | windows-latest | ${{ needs.test-windows.result }} |
+            | macos-latest | ${{ needs.test-macos.result }} |
+
+            Triggered by: ${{ github.event_name }} (${{ github.ref }}).
+          labels: "multi-platform"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
