@@ -118,10 +118,18 @@ else
 fi
 
 # ───────────────────── prepare path ─────────────────────
-# IMPORTANT: cd to a safe dir BEFORE removing PATH_DIR. On Windows, the
-# runner may have left cwd inside PATH_DIR (e.g., from actions/checkout@v4
-# which runs before this), and `rm -rf` on cwd fails with "Device or
-# resource busy". Use $HOME (or /tmp) as a safe chdir target.
+# Two Windows fixes applied here:
+#   (a) cd to a safe dir BEFORE removing PATH_DIR. The runner's cwd may
+#       already be inside PATH_DIR (left over from a prior actions/checkout
+#       step), and `rm -rf` of cwd fails with "Device or resource busy".
+#   (b) convert PATH_DIR to POSIX form (D:\a\... -> /d/a/...) before
+#       using it as a path argument. Bash on Windows interprets backslashes
+#       as escape characters, so an unquoted/unconverted Windows path
+#       silently mangles to nonsense ("D:a_actions..."). cygpath -u is
+#       available in Git Bash; on Linux/macOS the input is already POSIX.
+if command -v cygpath >/dev/null 2>&1; then
+    PATH_DIR=$(cygpath -u "$PATH_DIR")
+fi
 if [ "$CLEAN" = "true" ] && [ -d "$PATH_DIR" ]; then
     cd "$HOME" 2>/dev/null || cd / 2>/dev/null || cd /tmp 2>/dev/null || true
     rm -rf "$PATH_DIR"
