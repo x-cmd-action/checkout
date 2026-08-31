@@ -225,7 +225,7 @@ Temp 文件在 `$RUNNER_TEMP` 下，runner 回收时清理。
 | 维度 | `actions/checkout@v4` | `x-cmd-action/checkout` |
 | --- | --- | --- |
 | Runtime | bash + Node.js | 纯 bash |
-| Tarball 大小（解压后） | ~1.85 MB JS bundle | ~60 KB shell（**~32x 差距**）|
+| Tarball 大小（解压后） | ~1.85 MB JS bundle | ~39 KB shell（**~50x 差距** vs actions/checkout 解压 1.85 MB）|
 | Wall-clock step 耗时（warm，depth: 1） | ~565–714 ms | ~326–546 ms（**~1.7x 更快**，由 [`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml) 测得）|
 | 启动开销 | ~2–3s（Node + bundle） | ~0s |
 | Inputs 数 | 22 | 22（同名）+ 3 x-cmd 增强 |
