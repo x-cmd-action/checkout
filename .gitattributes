@@ -1,0 +1,7 @@
+# Exclude CI-only files and the Chinese README from the git archive that
+# GitHub Actions downloads when a user references `uses: x-cmd-action/checkout@v1`.
+# User-facing README.md and LICENSE stay so the action remains usable
+# when downloaded standalone (e.g., via `git archive` of this repo).
+.github/workflows/*    export-ignore
+test.gitconfig         export-ignore
+README.cn.md           export-ignore
