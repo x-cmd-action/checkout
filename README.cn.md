@@ -227,7 +227,7 @@ Temp 文件在 `$RUNNER_TEMP` 下，runner 回收时清理。
 | Runtime | bash + Node.js | 纯 bash |
 | Tarball 大小（解压后） | ~1.85 MB JS bundle | **~16 KB** shell（**~114x 差距**）—— tarball 里只有 `action.yml` + `lib/checkout.sh`（CI workflows / README / LICENSE 都通过 `.gitattributes` `export-ignore` 排除）|
 | Wall-clock step 耗时（warm，depth: 1） | ~565–714 ms | ~326–546 ms（**~1.7x 更快**，由 [`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml) 测得）|
-| 启动开销 | ~2–3s（Node + bundle） | ~0s |
+| 冷启动（job init + tarball 下载 + 第一次 step）| 见 [`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml) | 见 benchmark |
 | Inputs 数 | 22 | 22（同名）+ 3 x-cmd 增强 |
 | LFS / submodules / sparse / filter | ✅ | ✅ |
 | 私有 repo（token / ssh-key / ssh-user） | ✅ | ✅ |

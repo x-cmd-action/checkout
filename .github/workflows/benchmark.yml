@@ -9,6 +9,16 @@ jobs:
       - name: prepare benchmark dir
         run: mkdir -p /tmp/bench
 
+      # ── BASELINE: a no-op step so we know the runner's per-step overhead ──
+      - name: mark base start
+        run: date +%s%N > /tmp/bench/base_start
+
+      - name: baseline (no 'uses:' — pure step overhead)
+        run: echo "baseline no-op step"
+
+      - name: mark base end
+        run: date +%s%N > /tmp/bench/base_end
+
       # ── actions/checkout@v4 × 3 ──
       - name: mark ac1 start
         run: date +%s%N > /tmp/bench/ac1_start
@@ -82,6 +92,7 @@ jobs:
             awk -v s="$start_ns" -v e="$end_ns" 'BEGIN { printf "%.0f", (e - s) / 1000000 }'
           }
 
+          BASE_MS=$(ns_to_ms /tmp/bench/base_start /tmp/bench/base_end)
           AC1_MS=$(ns_to_ms /tmp/bench/ac1_start /tmp/bench/ac1_end)
           AC2_MS=$(ns_to_ms /tmp/bench/ac2_start /tmp/bench/ac2_end)
           AC3_MS=$(ns_to_ms /tmp/bench/ac3_start /tmp/bench/ac3_end)
@@ -90,7 +101,7 @@ jobs:
           XC3_MS=$(ns_to_ms /tmp/bench/xc3_start /tmp/bench/xc3_end)
 
           echo ""
-          echo "Parsed values: AC1=$AC1_MS AC2=$AC2_MS AC3=$AC3_MS XC1=$XC1_MS XC2=$XC2_MS XC3=$XC3_MS"
+          echo "Parsed values: BASE=$BASE_MS AC1=$AC1_MS AC2=$AC2_MS AC3=$AC3_MS XC1=$XC1_MS XC2=$XC2_MS XC3=$XC3_MS"
 
           # Warm best = min(warm runs); cold = 1st
           AC_WARM_MS=$(awk "BEGIN {v = $AC2_MS; if ($AC3_MS < v) v = $AC3_MS; print v}")
@@ -100,22 +111,39 @@ jobs:
           echo "=== Step duration (ms) ==="
           echo ""
           printf "%-35s %12s %12s %12s\n" "" "cold (1st)" "warm (2nd)" "warm (3rd)"
+          printf "%-35s %12s %12s %12s\n" "BASELINE (no 'uses:')" "$BASE_MS" "-" "-"
           printf "%-35s %12s %12s %12s\n" "actions/checkout@v4" "$AC1_MS" "$AC2_MS" "$AC3_MS"
           printf "%-35s %12s %12s %12s\n" "x-cmd-action/checkout@v1" "$XC1_MS" "$XC2_MS" "$XC3_MS"
           echo ""
 
-          echo "Best warm run (excludes cold tarball download):"
-          printf "  actions/checkout@v4:        %s ms\n" "$AC_WARM_MS"
-          printf "  x-cmd-action/checkout@v1:   %s ms\n" "$XC_WARM_MS"
-          if [ "$XC_WARM_MS" -gt 0 ]; then
-            RATIO=$(awk "BEGIN {printf \"%.2f\", $AC_WARM_MS / $XC_WARM_MS}")
-            echo "  Ratio: actions/checkout took ${RATIO}x longer"
+          # Subtract baseline to get action-only overhead
+          AC1_NET=$(awk "BEGIN {v = $AC1_MS - $BASE_MS; if (v < 0) v = 0; print v}")
+          AC2_NET=$(awk "BEGIN {v = $AC2_MS - $BASE_MS; if (v < 0) v = 0; print v}")
+          AC3_NET=$(awk "BEGIN {v = $AC3_MS - $BASE_MS; if (v < 0) v = 0; print v}")
+          XC1_NET=$(awk "BEGIN {v = $XC1_MS - $BASE_MS; if (v < 0) v = 0; print v}")
+          XC2_NET=$(awk "BEGIN {v = $XC2_MS - $BASE_MS; if (v < 0) v = 0; print v}")
+          XC3_NET=$(awk "BEGIN {v = $XC3_MS - $BASE_MS; if (v < 0) v = 0; print v}")
+
+          echo "Net (action only, baseline-subtracted):"
+          printf "%-35s %12s %12s %12s\n" "" "cold (1st)" "warm (2nd)" "warm (3rd)"
+          printf "%-35s %12s %12s %12s\n" "actions/checkout@v4" "${AC1_NET}ms" "${AC2_NET}ms" "${AC3_NET}ms"
+          printf "%-35s %12s %12s %12s\n" "x-cmd-action/checkout@v1" "${XC1_NET}ms" "${XC2_NET}ms" "${XC3_NET}ms"
+          echo ""
+
+          echo "Best warm run, baseline-subtracted:"
+          AC_WARM_NET=$(awk "BEGIN {v = $AC2_NET; if ($AC3_NET < v) v = $AC3_NET; print v}")
+          XC_WARM_NET=$(awk "BEGIN {v = $XC2_NET; if ($XC3_NET < v) v = $XC3_NET; print v}")
+          printf "  actions/checkout@v4:        %s ms\n" "$AC_WARM_NET"
+          printf "  x-cmd-action/checkout@v1:   %s ms\n" "$XC_WARM_NET"
+          if [ "$XC_WARM_NET" -gt 0 ]; then
+            RATIO=$(awk "BEGIN {printf \"%.2f\", $AC_WARM_NET / $XC_WARM_NET}")
+            echo "  Ratio: actions/checkout is ${RATIO}x slower (after baseline subtraction)"
           fi
 
           echo ""
           echo "Notes:"
           echo "  - 'cold' = first call in this job; tarball is downloaded from scratch."
           echo "  - 'warm' = subsequent calls; tarball already cached."
-          echo "  - All steps clone the same x-cmd-action/checkout repo (depth=1)."
-          echo "  - Real CI on a typical job hits 1 cold + 0-N warm; ratio depends on"
-          echo "    job size but warm ratio is the more representative number."
+          echo "  - 'baseline' = no 'uses:' step, just echo. Subtract to get pure action time."
+          echo "  - All 'uses:' steps clone the same x-cmd-action/checkout repo (depth=1)."
+          echo "  - 'net' = step time minus baseline = overhead attributable to the action itself."
