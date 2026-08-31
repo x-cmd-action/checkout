@@ -140,4 +140,13 @@ runs:
         INPUT_GITHUB_SERVER_URL: ${{ inputs.github-server-url }}
         INPUT_ALLOW_UNSAFE_PR_CHECKOUT: ${{ inputs.allow-unsafe-pr-checkout }}
         INPUT_GITCONFIG: ${{ inputs.gitconfig }}
-      run: bash ${{ github.action_path }}/lib/checkout.sh
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        # Convert action_path to POSIX form on Windows (cygpath is available in Git Bash).
+        # On Linux/macOS, cygpath doesn't exist; fall back to the input unchanged.
+        if command -v cygpath >/dev/null 2>&1; then
+          ACTION_PATH=$(cygpath -u "$GITHUB_ACTION_PATH")
+        else
+          ACTION_PATH="$GITHUB_ACTION_PATH"
+        fi
+        bash "$ACTION_PATH/lib/checkout.sh"

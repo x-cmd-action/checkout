@@ -56,11 +56,11 @@ jobs:
           URL=$(git config remote.origin.url)
           echo "$URL" | grep -qv "x-access-token" || { echo "FAIL: token in URL"; exit 1; }
 
-          # Compute durations
+          # POSIX-portable: cat + shell arithmetic; no GNU-awk, no `du -sb` on macOS.
           ns_to_ms() {
             local s e
             s=$(cat "$1"); e=$(cat "$2")
-            awk -v s="$s" -v e="$e" 'BEGIN {printf "%.0f", (e-s)/1000000}'
+            echo $(( (e - s) / 1000000 ))
           }
           BASE_MS=$(ns_to_ms /tmp/bench_base_start /tmp/bench_base_end)
           COLD_MS=$(ns_to_ms /tmp/bench_cold_start /tmp/bench_cold_end)
@@ -68,7 +68,8 @@ jobs:
           COLD_NET=$(( COLD_MS - BASE_MS )); [ $COLD_NET -lt 0 ] && COLD_NET=0
           WARM_NET=$(( WARM_MS - BASE_MS )); [ $WARM_NET -lt 0 ] && WARM_NET=0
 
-          CLONE_BYTES=$(du -sb "$GITHUB_WORKSPACE" | awk '{print $1}')
+          CLONE_BYTES=$(find "$GITHUB_WORKSPACE" -type f -exec wc -c {} + 2>/dev/null | tail -1 | awk '{print $1}')
+          CLONE_BYTES=${CLONE_BYTES:-0}
           BASH_VERSION_STR=$(bash --version | head -1)
 
           {
@@ -136,7 +137,7 @@ jobs:
           ns_to_ms() {
             local s e
             s=$(cat "$1"); e=$(cat "$2")
-            awk -v s="$s" -v e="$e" 'BEGIN {printf "%.0f", (e-s)/1000000}'
+            echo $(( (e - s) / 1000000 ))
           }
           BASE_MS=$(ns_to_ms /tmp/bench_base_start /tmp/bench_base_end)
           COLD_MS=$(ns_to_ms /tmp/bench_cold_start /tmp/bench_cold_end)
@@ -144,7 +145,8 @@ jobs:
           COLD_NET=$(( COLD_MS - BASE_MS )); [ $COLD_NET -lt 0 ] && COLD_NET=0
           WARM_NET=$(( WARM_MS - BASE_MS )); [ $WARM_NET -lt 0 ] && WARM_NET=0
 
-          CLONE_BYTES=$(du -sb "$GITHUB_WORKSPACE" | awk '{print $1}')
+          CLONE_BYTES=$(find "$GITHUB_WORKSPACE" -type f -exec wc -c {} + 2>/dev/null | tail -1 | awk '{print $1}')
+          CLONE_BYTES=${CLONE_BYTES:-0}
           BASH_VERSION_STR=$(bash --version 2>&1 | head -1 || echo "bash unavailable")
 
           {
@@ -210,7 +212,7 @@ jobs:
           ns_to_ms() {
             local s e
             s=$(cat "$1"); e=$(cat "$2")
-            awk -v s="$s" -v e="$e" 'BEGIN {printf "%.0f", (e-s)/1000000}'
+            echo $(( (e - s) / 1000000 ))
           }
           BASE_MS=$(ns_to_ms /tmp/bench_base_start /tmp/bench_base_end)
           COLD_MS=$(ns_to_ms /tmp/bench_cold_start /tmp/bench_cold_end)
@@ -218,7 +220,8 @@ jobs:
           COLD_NET=$(( COLD_MS - BASE_MS )); [ $COLD_NET -lt 0 ] && COLD_NET=0
           WARM_NET=$(( WARM_MS - BASE_MS )); [ $WARM_NET -lt 0 ] && WARM_NET=0
 
-          CLONE_BYTES=$(du -sb "$GITHUB_WORKSPACE" | awk '{print $1}')
+          CLONE_BYTES=$(find "$GITHUB_WORKSPACE" -type f -exec wc -c {} + 2>/dev/null | tail -1 | awk '{print $1}')
+          CLONE_BYTES=${CLONE_BYTES:-0}
           BASH_VERSION_STR=$(bash --version | head -1)
 
           {
@@ -273,7 +276,7 @@ jobs:
 
       - name: open / comment issue on failure
         if: steps.decide.outputs.all_pass == 'false'
-        uses: peter-evans/create-or-update-issue@v4
+        uses: peter-evans/create-issue@v4
         with:
           title: "Multi-platform test failed"
           body: |
