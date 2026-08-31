@@ -267,6 +267,44 @@ workflow 里把 `actions/checkout@v4` 换成 `x-cmd-action/checkout@v1`，**inpu
 
 Apache 2.0 —— 见 [`LICENSE`](LICENSE)。
 
+## 成本与开销
+
+GitHub Actions 私有 repo 按分钟计费（Linux runner：2026 年 $0.008/分钟）。每次 workflow 跑要付的成本分两部分：
+
+### 1. 平台开销（~5s，**固定**，都算你账上）
+
+- GitHub runner VM 启动：**~3–5s**，每个 job 都有，**不管你用哪个 action**
+- GitHub Actions step 框架开销：**每步 ~25ms**（[`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml) 工作流直接测了）
+
+**这是用 GitHub Actions 的固定成本**。把 `actions/checkout` 换成 `x-cmd-action/checkout`（或别的 action）**省不了这 5s**。
+
+### 2. Action 开销（~0.3–0.7s，**这是 action 唯一能影响的部分**）
+
+| Action | private repo step 时间（warm，baseline 扣减后）| vs actions/checkout |
+| --- | --- | --- |
+| `x-cmd-action/checkout@v1` | ~280 ms | 1.7x 更快 |
+| `actions/checkout@v4` | ~480 ms | （基准）|
+
+Shell action 每个 step 省 ~200 ms。**这是本 action 的全部优化空间**。其他一切（tarball 小、简单、不追 Node 版本）都是维护性 / 前瞻性优势，**不是 wall-clock 时间**。
+
+### 现实每次跑的成本（Linux 私有 repo，1 个 action step）
+
+| | 时间 | 近似成本 |
+| --- | --- | --- |
+| VM 启动 + 框架开销 | ~5s | $0.0007 |
+| + checkout step（本 action） | +0.3s | +$0.00004 |
+| **每次跑总计** | **~5.3s** | **~$0.00074** |
+
+1000 次跑 ≈ **$0.74** —— 从 `actions/checkout` 换成本 action 在 1000 次跑上**省 ~$0.02**。
+
+**真想省 GitHub Actions 钱**，杠杆是：
+
+- **自建 runner** —— 消除 5s VM 启动（也消除按分钟计费）
+- **更少 job** —— 把多个 step 合成一个 composite action
+- **更小的 matrix** —— 更少并行 job
+
+选本 action 而不是 `actions/checkout` **不是**成本优化。是**运营简洁性**选择：tarball 小、不追 Node 版本、易审计、易 fork。
+
 ## 相关链接
 
 - [actions/checkout](https://github.com/actions/checkout) —— 本 action 作为纯 shell 替代的原版。

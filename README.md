@@ -261,6 +261,44 @@ For the common case — clone, set identity, run tests, push back via persisted 
 
 Apache 2.0 — see [`LICENSE`](LICENSE).
 
+## Cost & overhead
+
+GitHub Actions charges by the minute on private repos (Linux runner: $0.008/min as of 2026). What you actually pay per workflow run has two components:
+
+### 1. Platform overhead (~5s, **fixed**, charged to you)
+
+- GitHub runner VM spin-up: **~3–5s** every job, regardless of which action you use
+- GitHub Actions step framework overhead: **~25ms per step** (the [`benchmark-vs-actions-checkout`](.github/workflows/benchmark.yml) workflow measures this directly)
+
+This is a **fixed cost** of using GitHub Actions. Swapping `actions/checkout` for `x-cmd-action/checkout` (or any other action) does **not** save these 5s.
+
+### 2. Action overhead (~0.3–0.7s, the only part this action can influence)
+
+| Action | private repo step time (warm, baseline-subtracted) | vs actions/checkout |
+| --- | --- | --- |
+| `x-cmd-action/checkout@v1` | ~280 ms | 1.7x faster |
+| `actions/checkout@v4` | ~480 ms | (baseline) |
+
+The shell action saves ~200 ms per step. **That is the entire headroom of this action.** Everything else (tarball size, simplicity, no Node version churn) is about maintenance / future-proofing, not about wall-clock time.
+
+### Realistic per-run cost (Linux private repo, 1 action step)
+
+| | Time | Approx cost |
+| --- | --- | --- |
+| VM startup + framework overhead | ~5s | $0.0007 |
+| + checkout step (this action) | +0.3s | +$0.00004 |
+| **Total per run** | **~5.3s** | **~$0.00074** |
+
+1000 runs ≈ **$0.74** — switching from `actions/checkout` to this action saves **~$0.02** over that 1000 runs.
+
+**If you want to actually save money on GitHub Actions**, the levers are:
+
+- **Self-hosted runners** — eliminates the 5s VM startup (and the per-minute charge)
+- **Fewer jobs** — combine steps into one composite action
+- **Smaller matrix** — fewer parallel jobs
+
+Picking this action over `actions/checkout` is **not** a cost optimization. It's an **operational simplicity** choice: smaller tarball, no Node version to track, easier to audit, easier to fork.
+
 ## Related
 
 - [actions/checkout](https://github.com/actions/checkout) — the TypeScript action this is a pure-shell alternative to.
