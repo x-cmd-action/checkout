@@ -50,7 +50,7 @@
 | Runtime | bash + Node.js | bash only |
 | `actions/checkout` 的特殊接线（extraheader + `includeIf`、`gc.auto=0`、`core.quotepath`、隔离 HOME、`url.<origin>/.insteadOf`、`post:` temp 清理）| 有 | **无** —— 可观察终态一致，但内部接线更简单 |
 | 硬编码 `github.com` 公钥到 known_hosts | 有（离线防 MITM）| 有 |
-| `persist-credentials: true` 让后续 git 命令可复用凭证 | 有（SSH 走 `core.sshCommand`，HTTPS 走 extraheader + `includeIf`）| 有（SSH 走 `core.sshCommand`，HTTPS 走 URL 内嵌 token）|
+| `persist-credentials: true` 让后续 git 命令可复用凭证 | 有（SSH 走 `core.sshCommand`，HTTPS 走 extraheader + `includeIf`）| **部分支持** —— SSH 走 `core.sshCommand`（后续可复用）；HTTPS 路径把 token 内嵌到 clone URL 后**剥掉**，后续 `git fetch`/`push` 不会被认证。改用 `ssh-key:` input，或自己手动跑 `git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@host/repo.git`。|
 | `set-safe-directory` input | 加 `<repo>` 路径 | 加 `'*'`（更宽）|
 
 如果上面"无"那行的任一对你的 workflow 重要，那一步用 `actions/checkout` 更好。
@@ -192,7 +192,7 @@ Temp 文件在 `$RUNNER_TEMP` 下，runner 回收时清理。
 | **`known-hosts-url`** | — | **x-cmd 增强。** known_hosts 文件的 URL（运行时 `curl` 拉）。host key 集中管理时用。 |
 | `ssh-strict` | `true` | 是否强制严格 host key 检查 |
 | `ssh-user` | `git` | SSH 登录用户名 |
-| `persist-credentials` | `true` | clone 完认证信息是否留在 repo config 里供后续 git 命令用 |
+| `persist-credentials` | `true` | SSH 路径：凭证通过 `core.sshCommand` 保留。**HTTPS 路径：fetch 完后 token 从 remote URL 剥掉** —— 后续 `git fetch`/`push` 不会被认证。|
 
 ### Fetch 行为
 

@@ -44,7 +44,7 @@ The intentional differences:
 | Runtime | bash + Node.js bundle | bash only |
 | `actions/checkout` quirks (extraheader + `includeIf`, `gc.auto=0`, `core.quotepath`, isolated `HOME`, `url.<origin>/.insteadOf`, post-step temp cleanup) | yes | **no** — observable end state matches but the internal plumbing is simpler |
 | Hardcoded `github.com` public key in known_hosts | yes (offline-safe MITM defense) | yes |
-| `persist-credentials: true` keeps token reusable for follow-up git commands | yes (via `core.sshCommand` for SSH, `extraheader` + `includeIf` for HTTPS) | yes (via `core.sshCommand` for SSH, URL-embedded token for HTTPS) |
+| `persist-credentials: true` keeps token reusable for follow-up git commands | yes (via `core.sshCommand` for SSH, `extraheader` + `includeIf` for HTTPS) | **partial** — SSH path uses `core.sshCommand` (reusable); HTTPS path embeds the token in the clone URL then strips it, so subsequent `git fetch`/`push` in this checkout will not be authenticated. Use `x-cmd-action/checkout`'s `ssh-key:` instead, or run `git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@host/repo.git` yourself before any further git commands. |
 | `set-safe-directory` input | adds `<repo>` path | adds `'*'` (broader) |
 
 If any of the "no" rows above matters for your workflow, prefer `actions/checkout` for that step.
@@ -186,7 +186,7 @@ All inputs below mirror `actions/checkout@v4` unless otherwise noted.
 | **`known-hosts-url`** | — | **x-cmd enhancement.** URL to a known_hosts file (`curl`-fetched at runtime). Useful when host keys are managed centrally. |
 | `ssh-strict` | `true` | enforce strict host key checking |
 | `ssh-user` | `git` | SSH user for the connection |
-| `persist-credentials` | `true` | keep credentials configured for subsequent git commands |
+| `persist-credentials` | `true` | SSH path: credentials persisted via `core.sshCommand`. **HTTPS path: token is stripped from the remote URL after fetch** — subsequent `git fetch`/`push` in this checkout will not be authenticated. |
 
 ### Fetch behavior
 
