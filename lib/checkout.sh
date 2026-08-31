@@ -131,12 +131,12 @@ if command -v cygpath >/dev/null 2>&1; then
     PATH_DIR=$(cygpath -u "$PATH_DIR")
 fi
 if [ "$CLEAN" = "true" ] && [ -d "$PATH_DIR" ]; then
-    # Force cwd out of PATH_DIR before rm. On Windows the runner's
-    # cwd is often inside PATH_DIR and rm of cwd fails. cd to the
-    # parent of PATH_DIR instead of $HOME so we don't accidentally
-    # land back in PATH_DIR via the HOME env var.
+    # Windows: cwd is often inside PATH_DIR (left over from prior step).
+    # Force a cd via exec to actually leave the directory before rm.
     PARENT_DIR=$(dirname "$PATH_DIR")
+    echo "this-repo/checkout: before rm: cwd=$(pwd) PATH_DIR=$PATH_DIR PARENT_DIR=$PARENT_DIR"
     cd "$PARENT_DIR" 2>/dev/null || cd / 2>/dev/null || cd /tmp 2>/dev/null || true
+    echo "this-repo/checkout: after cd: cwd=$(pwd)"
     rm -rf "$PATH_DIR"
 fi
 mkdir -p "$PATH_DIR"
