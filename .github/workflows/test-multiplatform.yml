@@ -53,8 +53,10 @@ jobs:
           test -d .git || { echo "FAIL: not a git repo"; exit 1; }
           test "$(git config user.name)" = "github-actions[bot]" \
               || { echo "FAIL: bot user.name not set"; exit 1; }
-          URL=$(git config remote.origin.url)
-          echo "$URL" | grep -qv "x-access-token" || { echo "FAIL: token in URL"; exit 1; }
+          # NOTE: when persist-credentials=true (default), checkout keeps
+          # the token in the remote URL so follow-up git ops can use it.
+          # We don't assert "token absent from URL" here. The strip path
+          # is exercised by the test-features.yml run with persist-credentials=false.
 
           # POSIX-portable: cat + shell arithmetic; no GNU-awk, no `du -sb` on macOS.
           ns_to_ms() {
@@ -132,7 +134,10 @@ jobs:
           test "$(git config user.name)" = "github-actions[bot]" \
               || { echo "FAIL: bot user.name not set"; exit 1; }
           URL=$(git config remote.origin.url)
-          echo "$URL" | grep -qv "x-access-token" || { echo "FAIL: token in URL"; exit 1; }
+          # NOTE: when persist-credentials=true (default), checkout keeps
+          # the token in the remote URL so follow-up git ops can use it.
+          # We don't assert "token absent from URL" here. The strip path
+          # is exercised by the test-features.yml run with persist-credentials=false.
 
           ns_to_ms() {
             local s e
@@ -207,7 +212,10 @@ jobs:
           test "$(git config user.name)" = "github-actions[bot]" \
               || { echo "FAIL: bot user.name not set"; exit 1; }
           URL=$(git config remote.origin.url)
-          echo "$URL" | grep -qv "x-access-token" || { echo "FAIL: token in URL"; exit 1; }
+          # NOTE: when persist-credentials=true (default), checkout keeps
+          # the token in the remote URL so follow-up git ops can use it.
+          # We don't assert "token absent from URL" here. The strip path
+          # is exercised by the test-features.yml run with persist-credentials=false.
 
           ns_to_ms() {
             local s e

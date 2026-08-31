@@ -118,7 +118,12 @@ else
 fi
 
 # ───────────────────── prepare path ─────────────────────
+# IMPORTANT: cd to a safe dir BEFORE removing PATH_DIR. On Windows, the
+# runner may have left cwd inside PATH_DIR (e.g., from actions/checkout@v4
+# which runs before this), and `rm -rf` on cwd fails with "Device or
+# resource busy". Use $HOME (or /tmp) as a safe chdir target.
 if [ "$CLEAN" = "true" ] && [ -d "$PATH_DIR" ]; then
+    cd "$HOME" 2>/dev/null || cd / 2>/dev/null || cd /tmp 2>/dev/null || true
     rm -rf "$PATH_DIR"
 fi
 mkdir -p "$PATH_DIR"
