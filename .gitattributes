@@ -1,7 +1,12 @@
-# Strip the action tarball to only what GitHub Actions actually runs:
-# action.yml (the manifest) and lib/ (the implementation). Everything
-# else — CI workflows, READMEs, LICENSE — is excluded from the git archive
-# that GitHub downloads when a user references `uses: x-cmd-action/<repo>@v1`.
-#
-# README.md and LICENSE still live in the GitHub repo at
-# github.com/x-cmd-action/<repo>; they're just not shipped in the tarball.
+# Exclude everything that isn't needed to RUN the action.
+# GitHub Actions downloads this tarball when a user references
+# `uses: x-cmd-action/<repo>@v1`; only the manifest + the script
+# are required at runtime. Everything else is repo-UI chrome that
+# belongs on github.com/<org>/<repo> but not in the tarball.
+
+.github/workflows/*    export-ignore
+README.cn.md           export-ignore
+README.md              export-ignore
+LICENSE                export-ignore
+test.gitconfig         export-ignore
+test-hooks/            export-ignore
