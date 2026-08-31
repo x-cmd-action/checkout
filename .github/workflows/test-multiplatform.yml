@@ -256,6 +256,8 @@ jobs:
       issues: write
       contents: read
     steps:
+      - name: checkout (so gh CLI has a repo context)
+        uses: actions/checkout@v4
       - name: decide pass/fail
         id: decide
         run: |
